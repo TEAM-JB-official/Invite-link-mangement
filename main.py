@@ -65,13 +65,14 @@ application.add_handler(CallbackQueryHandler(callback_handlers))
 
 async def post_init(app: Application):
     await init_db()
-    # Delete any existing webhook to avoid 409 conflict
+    # Delete any existing webhook and drop pending updates to avoid 409 conflicts
     await app.bot.delete_webhook(drop_pending_updates=True)
-    logging.info("Deleted existing webhook (if any)")
+    logging.info("Deleted any existing webhook")
     setup_scheduler(app.bot)
-    logging.info("Bot initialised (MongoDB and scheduler ready)")
+    logging.info("Bot initialised")
 
 application.post_init = post_init
 
 if __name__ == "__main__":
-    application.run_polling()
+    # Start polling with drop_pending_updates=True
+    application.run_polling(drop_pending_updates=True)
