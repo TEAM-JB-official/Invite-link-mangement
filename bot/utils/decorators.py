@@ -9,7 +9,7 @@ def require_verified(func):
         db = get_db()
         user = await db.users.find_one({"user_id": update.effective_user.id})
         if not user or not user.get("is_verified"):
-            await update.message.reply_text("❌ You are not verified.")
+            await update.message.reply_text("❌ You are not verified. Contact an admin.")
             return
         return await func(update, context, *args, **kwargs)
     return wrapper
@@ -20,7 +20,7 @@ def admin_required(func):
         db = get_db()
         admin = await db.admins.find_one({"user_id": update.effective_user.id})
         if not admin:
-            await update.message.reply_text("❌ Admin required.")
+            await update.message.reply_text("❌ Admin privilege required.")
             return
         return await func(update, context, *args, **kwargs)
     return wrapper
@@ -31,10 +31,13 @@ def owner_required(func):
         db = get_db()
         admin = await db.admins.find_one({"user_id": update.effective_user.id})
         if not admin or admin.get("role") != "owner":
-            await update.message.reply_text("❌ Owner required.")
+            await update.message.reply_text("❌ Owner privilege required.")
             return
         return await func(update, context, *args, **kwargs)
     return wrapper
+
+# Alias for owner_only (same as owner_required)
+owner_only = owner_required
 
 def owner_or_superadmin_required(func):
     @wraps(func)
@@ -42,7 +45,7 @@ def owner_or_superadmin_required(func):
         db = get_db()
         admin = await db.admins.find_one({"user_id": update.effective_user.id})
         if not admin or admin.get("role") not in ["owner", "super_admin"]:
-            await update.message.reply_text("❌ Owner or Super Admin required.")
+            await update.message.reply_text("❌ Owner or Super Admin privilege required.")
             return
         return await func(update, context, *args, **kwargs)
     return wrapper
