@@ -2,7 +2,8 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
-from bot.utils.helpers import generate_referral_code, grant_premium, register_user
+from bot.config import OWNER_ID
+from bot.utils.helpers import generate_referral_code, grant_premium
 from bot.utils.decorators import log_command
 
 @log_command
@@ -10,10 +11,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     args = context.args
     ref_code = args[0] if args else None
-    
     db = get_db()
-    existing = await db.users.find_one({"user_id": user.id})
     
+    # Register user if not exists
+    existing = await db.users.find_one({"user_id": user.id})
     if not existing:
         code = generate_referral_code(user.id)
         await db.users.insert_one({
@@ -28,7 +29,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "created_at": datetime.utcnow()
         })
         
-        if ref_code:
+        # If this is the owner, mark as verified and admin
+        if user.id == OWNER_ID:
+            await db.users.update_one(
+                {"user_id": user.id},
+                {"$set": {"is_verified": True, "is_premium": True, "premium_expiry": datetime.utcnow() + timedelta(days=365)}}
+            )
+            # Also add to admins table
+            existing_admin = await db.admins.find_one({"user_id": user.id})
+            if not existing_admin:
+                await db.admins.insert_one({
+                    "user_id": user.id,
+                    "role": "owner",
+                    "added_by": user.id,
+                    "added_at": datetime.utcnow()
+                })
+            await update.message.reply_text("✅ You are the owner. Full access granted.")
+        
+        # Handle referral
+        if ref_code and user.id != OWNER_ID:
             referrer = await db.users.find_one({"referral_code": ref_code})
             if referrer and referrer["user_id"] != user.id:
                 await db.users.update_one(
@@ -43,7 +62,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 })
                 await grant_premium(referrer["user_id"], days=1)
                 await grant_premium(user.id, days=1)
-                await update.message.reply_text("🎉 You and your referrer both received 1 day of premium!")
+                await update.message.reply_text("🎉 You and your referrer each received 1 day of premium!")
+    
+    # If user already exists but is owner and not verified (edge case)
+    elif user.id == OWNER_ID:
+        await db.users.update_one(
+            {"user_id": user.id},
+            {"$set": {"is_verified": True}}
+        )
+        await db.admins.update_one(
+            {"user_id": user.id},
+            {"$set": {"role": "owner"}},
+            upsert=True
+        )
     
     await update.message.reply_text(
         f"Welcome {user.first_name}!\n\n"
@@ -51,4 +82,4 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use /create_link to start.\n"
         "Use /dashboard for full control panel.\n"
         "Use /help for more commands."
-    )
+        )
