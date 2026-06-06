@@ -1,8 +1,8 @@
 import os
 import sys
 import logging
+import asyncio
 from aiohttp import web
-from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -49,6 +49,11 @@ async def main():
     await init_db()
     setup_scheduler(application.bot)
     
+    # IMPORTANT: Initialize the application before processing updates
+    await application.initialize()
+    await application.start()
+    logging.info("Application initialized and started")
+    
     if not WEBHOOK_URL:
         logging.error("WEBHOOK_URL is not set! Please set it in Koyeb environment variables.")
         return
@@ -75,8 +80,11 @@ async def main():
     logging.info(f"Webhook server running on port {PORT}")
     
     # Keep running
-    await asyncio.Event().wait()
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await application.stop()
+        await application.shutdown()
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
