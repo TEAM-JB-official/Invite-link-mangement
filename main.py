@@ -1,4 +1,5 @@
-import asyncio
+import sys
+import os
 import logging
 from aiohttp import web
 from telegram.ext import (
@@ -6,29 +7,31 @@ from telegram.ext import (
     CommandHandler,
     ChatJoinRequestHandler,
     CallbackQueryHandler,
-    MessageHandler,
-    filters,
 )
-from bot.config import BOT_TOKEN, PORT, WEBHOOK_URL
-from bot.database.mongo import init_db
-from bot.handlers import (
-    start,
-    create_link,
-    active_links,
-    revoke_link,
-    revoke_all,
-    stats,
-    settings,
-    admins,
-    backup,
-    restore,
-    dashboard,
-    join_request,
-    callback_handlers,
-)
-from bot.middleware.error_handler import error_handler
-from bot.middleware.logging_middleware import logging_middleware
-from bot.scheduler.jobs import setup_scheduler
+
+# Diagnostic: print current directory and list files
+print("Current working directory:", os.getcwd())
+print("Contents:", os.listdir("."))
+if os.path.exists("bot"):
+    print("bot/ contents:", os.listdir("bot"))
+else:
+    print("bot/ directory not found!")
+
+# Add parent directory to path if needed
+sys.path.insert(0, os.getcwd())
+
+try:
+    from bot.config import BOT_TOKEN, PORT, WEBHOOK_URL
+    from bot.database.mongo import init_db
+    from bot.handlers import (
+        start, create_link, active_links, revoke_link, revoke_all,
+        stats, settings, admins, backup, restore, dashboard, join_request, callback_handlers
+    )
+    from bot.middleware.error_handler import error_handler
+    from bot.scheduler.jobs import setup_scheduler
+except ImportError as e:
+    print(f"Import error: {e}")
+    sys.exit(1)
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -52,12 +55,7 @@ async def main():
     await init_db()
     
     application = ApplicationBuilder().token(BOT_TOKEN).build()
-    
-    # Error handler
     application.add_error_handler(error_handler)
-    
-    # Middleware
-    application.update_persistent_state(logging_middleware)
     
     # Command handlers
     application.add_handler(CommandHandler("start", start))
@@ -71,20 +69,12 @@ async def main():
     application.add_handler(CommandHandler("backup", backup))
     application.add_handler(CommandHandler("restore", restore))
     application.add_handler(CommandHandler("dashboard", dashboard))
-    
-    # Join request handler
     application.add_handler(ChatJoinRequestHandler(join_request))
-    
-    # Callback query handler
     application.add_handler(CallbackQueryHandler(callback_handlers))
     
-    # Start background scheduler
     setup_scheduler(application.bot)
-    
-    # Start health web server
     await start_web_server()
     
-    # Start bot
     if WEBHOOK_URL:
         await application.bot.set_webhook(WEBHOOK_URL)
         logging.info(f"Webhook set to {WEBHOOK_URL}")
@@ -99,4 +89,5 @@ async def main():
         await application.run_polling()
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
