@@ -1,6 +1,8 @@
 import sys
 import os
 import logging
+import asyncio
+import threading
 from aiohttp import web
 from telegram.ext import (
     ApplicationBuilder,
@@ -9,29 +11,16 @@ from telegram.ext import (
     CallbackQueryHandler,
 )
 
-# Diagnostic: print current directory and list files
-print("Current working directory:", os.getcwd())
-print("Contents:", os.listdir("."))
-if os.path.exists("bot"):
-    print("bot/ contents:", os.listdir("bot"))
-else:
-    print("bot/ directory not found!")
-
-# Add parent directory to path if needed
 sys.path.insert(0, os.getcwd())
 
-try:
-    from bot.config import BOT_TOKEN, PORT, WEBHOOK_URL
-    from bot.database.mongo import init_db
-    from bot.handlers import (
-        start, create_link, active_links, revoke_link, revoke_all,
-        stats, settings, admins, backup, restore, dashboard, join_request, callback_handlers
-    )
-    from bot.middleware.error_handler import error_handler
-    from bot.scheduler.jobs import setup_scheduler
-except ImportError as e:
-    print(f"Import error: {e}")
-    sys.exit(1)
+from bot.config import BOT_TOKEN, PORT, WEBHOOK_URL
+from bot.database.mongo import init_db
+from bot.handlers import (
+    start, create_link, active_links, revoke_link, revoke_all,
+    stats, settings, admins, backup, restore, dashboard, join_request, callback_handlers
+)
+from bot.middleware.error_handler import error_handler
+from bot.scheduler.jobs import setup_scheduler
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -41,23 +30,23 @@ logging.basicConfig(
 async def health_check(request):
     return web.Response(text="OK")
 
-async def start_web_server():
+def run_web_server():
+    """Run aiohttp web server in a separate thread"""
     app = web.Application()
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    logging.info(f"Health check server running on port {PORT}")
+    # Use the PORT environment variable (default 8000)
+    web.run_app(app, host="0.0.0.0", port=int(PORT), print=None)
 
 async def main():
+    # Initialize MongoDB
     await init_db()
     
+    # Build the bot application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_error_handler(error_handler)
     
-    # Command handlers
+    # Add all command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("create_link", create_link))
     application.add_handler(CommandHandler("active_links", active_links))
@@ -72,9 +61,15 @@ async def main():
     application.add_handler(ChatJoinRequestHandler(join_request))
     application.add_handler(CallbackQueryHandler(callback_handlers))
     
+    # Start background scheduler (cleans expired links, updates premium status)
     setup_scheduler(application.bot)
-    await start_web_server()
     
+    # Start the health check web server in a separate daemon thread
+    thread = threading.Thread(target=run_web_server, daemon=True)
+    thread.start()
+    logging.info(f"Health check server running on port {PORT} (in background thread)")
+    
+    # Start the bot (polling) – this will block the main thread
     if WEBHOOK_URL:
         await application.bot.set_webhook(WEBHOOK_URL)
         logging.info(f"Webhook set to {WEBHOOK_URL}")
@@ -89,5 +84,4 @@ async def main():
         await application.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
