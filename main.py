@@ -32,7 +32,6 @@ class HealthHandler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-
     def log_message(self, format, *args):
         pass
 
@@ -41,7 +40,7 @@ def run_health_server():
     logging.info(f"Health check server running on port {PORT} (background thread)")
     server.serve_forever()
 
-# Start health server in a background daemon thread
+# Start health check in background thread
 health_thread = threading.Thread(target=run_health_server, daemon=True)
 health_thread.start()
 
@@ -49,7 +48,7 @@ health_thread.start()
 application = Application.builder().token(BOT_TOKEN).build()
 application.add_error_handler(error_handler)
 
-# Add all handlers
+# Add handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("create_link", create_link))
 application.add_handler(CommandHandler("active_links", active_links))
@@ -64,14 +63,15 @@ application.add_handler(CommandHandler("dashboard", dashboard))
 application.add_handler(ChatJoinRequestHandler(join_request))
 application.add_handler(CallbackQueryHandler(callback_handlers))
 
-# Run initialisation inside the bot's event loop using post_init
 async def post_init(app: Application):
     await init_db()
+    # Delete any existing webhook to avoid 409 conflict
+    await app.bot.delete_webhook(drop_pending_updates=True)
+    logging.info("Deleted existing webhook (if any)")
     setup_scheduler(app.bot)
     logging.info("Bot initialised (MongoDB and scheduler ready)")
 
 application.post_init = post_init
 
-# Start polling (this will block and manage its own event loop)
 if __name__ == "__main__":
     application.run_polling()
