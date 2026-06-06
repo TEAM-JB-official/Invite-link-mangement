@@ -9,7 +9,7 @@ from telegram.ext import (
     ChatJoinRequestHandler,
     CallbackQueryHandler,
 )
-from bot.config import BOT_TOKEN, PORT, WEBHOOK_URL
+from bot.config import BOT_TOKEN, PORT
 from bot.database.mongo import init_db
 from bot.handlers import (
     start, create_link, active_links, revoke_link, revoke_all,
@@ -23,11 +23,9 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-# Build the bot application
 application = Application.builder().token(BOT_TOKEN).build()
 application.add_error_handler(error_handler)
 
-# Add all handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("create_link", create_link))
 application.add_handler(CommandHandler("active_links", active_links))
@@ -45,46 +43,29 @@ application.add_handler(CallbackQueryHandler(callback_handlers))
 async def health_check(request):
     return web.Response(text="OK")
 
-async def main():
-    await init_db()
-    setup_scheduler(application.bot)
-    
-    # IMPORTANT: Initialize the application before processing updates
-    await application.initialize()
-    await application.start()
-    logging.info("Application initialized and started")
-    
-    if not WEBHOOK_URL:
-        logging.error("WEBHOOK_URL is not set! Please set it in Koyeb environment variables.")
-        return
-    
-    # Set webhook
-    webhook_path = f"/{BOT_TOKEN}"
-    full_webhook_url = f"{WEBHOOK_URL.rstrip('/')}{webhook_path}"
-    await application.bot.set_webhook(full_webhook_url)
-    logging.info(f"Webhook set to {full_webhook_url}")
-    
-    # Create aiohttp web server
+async def run_web_server():
+    """Simple aiohttp server for health checks"""
     app = web.Application()
-    # Telegram webhook endpoint
-    app.router.add_post(webhook_path, application.process_update)
-    # Health check endpoints
-    app.router.add_get("/health", health_check)
     app.router.add_get("/", health_check)
-    
-    # Start the server
+    app.router.add_get("/health", health_check)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    logging.info(f"Webhook server running on port {PORT}")
+    logging.info(f"Health check server running on port {PORT}")
+    # Keep the server alive forever
+    await asyncio.Event().wait()
+
+async def main():
+    await init_db()
+    setup_scheduler(application.bot)
     
-    # Keep running
-    try:
-        await asyncio.Event().wait()
-    finally:
-        await application.stop()
-        await application.shutdown()
+    # Start bot polling and health check server concurrently
+    polling_task = asyncio.create_task(application.run_polling())
+    web_task = asyncio.create_task(run_web_server())
+    
+    # Wait for either to finish (they run forever)
+    await asyncio.gather(polling_task, web_task)
 
 if __name__ == "__main__":
     asyncio.run(main())
