@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 from bot.database.mongo import get_db
 from bot.utils.helpers import create_invite_link, revoke_link_by_id, get_max_allowed_days
 from bot.config import LOG_CHANNEL
+from . import (  # import all command handlers
+    create_link, active_links, stats, settings, admins, backup, dashboard
+)
 
 async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -12,12 +15,44 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = get_db()
     
+    # Dashboard actions – call the respective command functions
+    if data == "dashboard_create":
+        # Re-use the create_link command (requires a message, so we simulate)
+        await create_link(update, context)
+        await query.delete_message()
+        return
+    elif data == "dashboard_active":
+        await active_links(update, context)
+        await query.delete_message()
+        return
+    elif data == "dashboard_stats":
+        await stats(update, context)
+        await query.delete_message()
+        return
+    elif data == "dashboard_settings":
+        await settings(update, context)
+        await query.delete_message()
+        return
+    elif data == "dashboard_backup":
+        await backup(update, context)
+        await query.delete_message()
+        return
+    elif data == "dashboard_admins":
+        await admins(update, context)
+        await query.delete_message()
+        return
+    elif data == "dashboard_logs":
+        if LOG_CHANNEL:
+            await query.edit_message_text("Check the log channel for recent activity.")
+        else:
+            await query.edit_message_text("No log channel configured.")
+        return
+    
     # Group selection for create link
     if data.startswith("creategroup_"):
         group_id = int(data.split("_")[1])
         context.user_data["create_group_id"] = group_id
         context.user_data["create_link_step"] = "expiry"
-        # Expiry options
         keyboard = [
             [InlineKeyboardButton("1 hour", callback_data="expiry_3600")],
             [InlineKeyboardButton("6 hours", callback_data="expiry_21600")],
@@ -26,8 +61,9 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Custom", callback_data="expiry_custom")],
         ]
         await query.edit_message_text("Select expiry time:", reply_markup=InlineKeyboardMarkup(keyboard))
+        return
     
-    elif data.startswith("expiry_"):
+    if data.startswith("expiry_"):
         if data == "expiry_custom":
             context.user_data["create_link_step"] = "custom_expiry"
             await query.edit_message_text("Send expiry in seconds (e.g., 3600 for 1 hour):")
@@ -43,15 +79,15 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Custom", callback_data="maxuses_custom")],
         ]
         await query.edit_message_text("Select max number of joins:", reply_markup=InlineKeyboardMarkup(keyboard))
+        return
     
-    elif data.startswith("maxuses_"):
+    if data.startswith("maxuses_"):
         if data == "maxuses_custom":
             context.user_data["create_link_step"] = "custom_maxuses"
             await query.edit_message_text("Send maximum number of joins (e.g., 100):")
             return
         max_uses = int(data.split("_")[1])
         context.user_data["create_max_uses"] = max_uses
-        # Create the link
         group_id = context.user_data.get("create_group_id")
         expiry_seconds = context.user_data.get("create_expiry_seconds")
         if not group_id or not expiry_seconds:
@@ -67,36 +103,20 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 max_uses=max_uses
             )
             await query.edit_message_text(f"✅ Invite link created:\n{link_info['invite_link']}\n\nExpires: {expiry_date}\nMax uses: {max_uses}")
-            # Log to channel
             if LOG_CHANNEL:
                 await context.bot.send_message(LOG_CHANNEL, f"🔗 New link created by {user_id} for group {group_id}: {link_info['invite_link']}")
         except Exception as e:
             await query.edit_message_text(f"❌ Failed to create link: {str(e)}")
         # Clear step
         context.user_data["create_link_step"] = None
+        return
     
     # Revoke link from active_links panel
-    elif data.startswith("revoke_"):
+    if data.startswith("revoke_"):
         link_id = data.split("_")[1]
         await revoke_link_by_id(link_id, context.bot)
         await query.edit_message_text("Link revoked.")
+        return
     
-    # Dashboard actions
-    elif data == "dashboard_create":
-        await create_link(update, context)  # re-use the command handler
-    elif data == "dashboard_active":
-        await active_links(update, context)
-    elif data == "dashboard_stats":
-        await stats(update, context)
-    elif data == "dashboard_settings":
-        await settings(update, context)
-    elif data == "dashboard_backup":
-        await backup(update, context)
-    elif data == "dashboard_admins":
-        await admins(update, context)
-    elif data == "dashboard_logs":
-        # Send last 20 logs from channel (if bot has access)
-        if LOG_CHANNEL:
-            await query.edit_message_text("Check the log channel for recent activity.")
-        else:
-            await query.edit_message_text("No log channel configured.")
+    # If nothing matched, just acknowledge
+    await query.edit_message_text("Unknown command. Use /help.")
