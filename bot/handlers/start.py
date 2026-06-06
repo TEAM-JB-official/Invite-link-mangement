@@ -1,3 +1,4 @@
+from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
@@ -27,7 +28,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "created_at": datetime.utcnow()
         })
         
-        # Handle referral
         if ref_code:
             referrer = await db.users.find_one({"referral_code": ref_code})
             if referrer and referrer["user_id"] != user.id:
@@ -41,7 +41,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "reward_given": False,
                     "created_at": datetime.utcnow()
                 })
-                # Give both users 1 day premium
                 await grant_premium(referrer["user_id"], days=1)
                 await grant_premium(user.id, days=1)
                 await update.message.reply_text("🎉 You and your referrer both received 1 day of premium!")
