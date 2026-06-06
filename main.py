@@ -16,6 +16,7 @@ from bot.handlers import (
     start, create_link, active_links, revoke_link, revoke_all,
     stats, settings, admins, backup, restore, dashboard, join_request, callback_handlers
 )
+from bot.handlers.addgroup import addgroup
 from bot.middleware.error_handler import error_handler
 from bot.scheduler.jobs import setup_scheduler
 
@@ -61,6 +62,7 @@ application.add_handler(CommandHandler("admins", admins))
 application.add_handler(CommandHandler("backup", backup))
 application.add_handler(CommandHandler("restore", restore))
 application.add_handler(CommandHandler("dashboard", dashboard))
+application.add_handler(CommandHandler("addgroup", addgroup))
 application.add_handler(ChatJoinRequestHandler(join_request))
 application.add_handler(CallbackQueryHandler(callback_handlers))
 
