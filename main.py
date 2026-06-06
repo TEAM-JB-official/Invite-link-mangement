@@ -1,18 +1,15 @@
-import sys
 import os
+import sys
 import logging
-import asyncio
-import threading
 from aiohttp import web
+from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
     ChatJoinRequestHandler,
     CallbackQueryHandler,
+    TypeHandler,
 )
-
-sys.path.insert(0, os.getcwd())
-
 from bot.config import BOT_TOKEN, PORT, WEBHOOK_URL
 from bot.database.mongo import init_db
 from bot.handlers import (
@@ -27,61 +24,61 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
+# Initialize bot application
+application = Application.builder().token(BOT_TOKEN).build()
+application.add_error_handler(error_handler)
+
+# Add handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("create_link", create_link))
+application.add_handler(CommandHandler("active_links", active_links))
+application.add_handler(CommandHandler("revoke_link", revoke_link))
+application.add_handler(CommandHandler("revoke_all", revoke_all))
+application.add_handler(CommandHandler("stats", stats))
+application.add_handler(CommandHandler("settings", settings))
+application.add_handler(CommandHandler("admins", admins))
+application.add_handler(CommandHandler("backup", backup))
+application.add_handler(CommandHandler("restore", restore))
+application.add_handler(CommandHandler("dashboard", dashboard))
+application.add_handler(ChatJoinRequestHandler(join_request))
+application.add_handler(CallbackQueryHandler(callback_handlers))
+
 async def health_check(request):
     return web.Response(text="OK")
 
-def run_web_server():
-    """Run aiohttp web server in a separate thread"""
-    app = web.Application()
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
-    # Use the PORT environment variable (default 8000)
-    web.run_app(app, host="0.0.0.0", port=int(PORT), print=None)
-
 async def main():
-    # Initialize MongoDB
     await init_db()
-    
-    # Build the bot application
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
-    application.add_error_handler(error_handler)
-    
-    # Add all command handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("create_link", create_link))
-    application.add_handler(CommandHandler("active_links", active_links))
-    application.add_handler(CommandHandler("revoke_link", revoke_link))
-    application.add_handler(CommandHandler("revoke_all", revoke_all))
-    application.add_handler(CommandHandler("stats", stats))
-    application.add_handler(CommandHandler("settings", settings))
-    application.add_handler(CommandHandler("admins", admins))
-    application.add_handler(CommandHandler("backup", backup))
-    application.add_handler(CommandHandler("restore", restore))
-    application.add_handler(CommandHandler("dashboard", dashboard))
-    application.add_handler(ChatJoinRequestHandler(join_request))
-    application.add_handler(CallbackQueryHandler(callback_handlers))
-    
-    # Start background scheduler (cleans expired links, updates premium status)
+    # Start the background scheduler (cleans expired links, etc.)
     setup_scheduler(application.bot)
     
-    # Start the health check web server in a separate daemon thread
-    thread = threading.Thread(target=run_web_server, daemon=True)
-    thread.start()
-    logging.info(f"Health check server running on port {PORT} (in background thread)")
-    
-    # Start the bot (polling) – this will block the main thread
+    # Set up webhook (or use polling if WEBHOOK_URL not set)
     if WEBHOOK_URL:
+        # Koyeb will provide the public URL automatically.
+        # Use the PORT environment variable (Koyeb sets it to 8000).
         await application.bot.set_webhook(WEBHOOK_URL)
         logging.info(f"Webhook set to {WEBHOOK_URL}")
-        await application.start_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=BOT_TOKEN,
-            webhook_url=WEBHOOK_URL + "/" + BOT_TOKEN,
-        )
+        
+        # Run the aiohttp server that will handle both webhook and health checks
+        app = web.Application()
+        # Telegram webhook endpoint
+        app.router.add_post(f"/{BOT_TOKEN}", application.process_update)
+        # Health check endpoint
+        app.router.add_get("/health", health_check)
+        app.router.add_get("/", health_check)
+        
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", PORT)
+        await site.start()
+        logging.info(f"Webhook server running on port {PORT}")
+        
+        # Keep the server running forever
+        await asyncio.Event().wait()
     else:
-        logging.info("Starting polling...")
+        # Fallback to polling (for local testing)
+        logging.info("No WEBHOOK_URL set, using polling...")
         await application.run_polling()
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
