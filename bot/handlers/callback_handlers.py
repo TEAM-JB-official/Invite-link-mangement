@@ -6,27 +6,34 @@ from bot.utils.helpers import create_invite_link, revoke_link_by_id, format_link
 from bot.config import LOG_CHANNEL, OWNER_ID
 
 async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handles all inline keyboard callbacks for dashboard, create link flow,
+    revoke links, and admin management.
+    """
     query = update.callback_query
     await query.answer()
     data = query.data
     user_id = update.effective_user.id
     db = get_db()
 
+    # Helper to send or edit a message from a callback
     async def send_or_edit(text, reply_markup=None, parse_mode=None):
         if query.message:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
         else:
             await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    # Dashboard buttons
+    # ------------------------------------------------------------------
+    # Dashboard main buttons
+    # ------------------------------------------------------------------
     if data == "dashboard_create":
         groups = await db.groups.find().to_list(None)
         if not groups:
-            await send_or_edit("❌ I'm not admin in any group yet. Use /addgroup to add a group.")
+            await send_or_edit("❌ I'm not admin in any group/channel yet. Add me as admin first.")
             return
         context.user_data["create_link_step"] = "group"
         keyboard = [[InlineKeyboardButton(g["title"], callback_data=f"creategroup_{g['group_id']}")] for g in groups]
-        await send_or_edit("Select a group:", reply_markup=InlineKeyboardMarkup(keyboard))
+        await send_or_edit("Select a group or channel:", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
     if data == "dashboard_active":
@@ -64,7 +71,8 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "dashboard_settings":
-        await send_or_edit("Use /settings to configure bot settings.")
+        await send_or_edit("Use /settings to configure bot settings.\n\n"
+                           "You can set welcome messages per group and log channels there.")
         return
 
     if data == "dashboard_logs":
@@ -102,7 +110,9 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit("Send the Telegram user ID of the new admin.\nRole options: admin, super_admin")
         return
 
-    # Group selection and link creation flow
+    # ------------------------------------------------------------------
+    # Create link flow – group selection
+    # ------------------------------------------------------------------
     if data.startswith("creategroup_"):
         group_id = int(data.split("_")[1])
         context.user_data["create_group_id"] = group_id
@@ -149,25 +159,41 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         expiry_date = datetime.utcnow() + timedelta(seconds=expiry_seconds)
         try:
+            # Get chat type automatically inside create_invite_link
             link_info = await create_invite_link(
                 bot=context.bot,
-                group_id=group_id,
+                chat_id=group_id,
                 creator_id=user_id,
                 expiry_date=expiry_date,
                 max_uses=max_uses
             )
-            await send_or_edit(f"✅ Invite link created:\n{link_info['invite_link']}\n\nExpires: {expiry_date}\nMax uses: {max_uses}")
+            await send_or_edit(
+                f"✅ **Invite link created:**\n{link_info['invite_link']}\n\n"
+                f"⏰ Expires: {expiry_date}\n"
+                f"👥 Max uses: {max_uses}",
+                parse_mode="Markdown"
+            )
             if LOG_CHANNEL:
-                await context.bot.send_message(LOG_CHANNEL, f"🔗 New link created by {user_id} for group {group_id}: {link_info['invite_link']}")
+                await context.bot.send_message(
+                    LOG_CHANNEL,
+                    f"🔗 New link created by {user_id} for chat {group_id}: {link_info['invite_link']}"
+                )
         except Exception as e:
             await send_or_edit(f"❌ Failed to create link: {str(e)}")
+        # Clear the flow data
         context.user_data["create_link_step"] = None
         return
 
+    # ------------------------------------------------------------------
+    # Revoke link from active_links panel
+    # ------------------------------------------------------------------
     if data.startswith("revoke_"):
         link_id = data.split("_")[1]
         await revoke_link_by_id(link_id, context.bot)
-        await send_or_edit("Link revoked.")
+        await send_or_edit("✅ Link revoked successfully.")
         return
 
-    await send_or_edit("Unknown command. Use /help.")
+    # ------------------------------------------------------------------
+    # Fallback for unknown callback
+    # ------------------------------------------------------------------
+    await send_or_edit("❓ Unknown command. Use /help for available commands.")
