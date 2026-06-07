@@ -171,7 +171,6 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"✅ **Invite link created:**\n{link_info['invite_link']}\n\n"
                 f"⏰ Expires: {expiry_date}\n"
                 f"👥 Max uses: {max_uses}",
-                parse_mode="Markdown"
             )
             if LOG_CHANNEL:
                 await context.bot.send_message(
