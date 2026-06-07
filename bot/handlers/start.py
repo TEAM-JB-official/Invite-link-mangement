@@ -58,7 +58,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Expires: {existing_link['expiry_date']}\n"
             f"Remaining uses: {remaining}\n\n"
             "Click the link to join. You will be automatically approved.",
-            parse_mode="Markdown"
         )
         return
 
@@ -86,7 +85,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⏰ Expires: {expiry_date}\n"
             f"👥 Max uses: {max_uses}\n\n"
             "Click the link to join. You will be automatically approved.",
-            parse_mode="Markdown"
         )
         if LOG_CHANNEL:
             await context.bot.send_message(LOG_CHANNEL, f"🔗 New default link for user {user.id}: {link_info['invite_link']}")
