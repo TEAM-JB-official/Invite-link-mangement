@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from bot.database.mongo import get_db
 from bot.utils.helpers import create_invite_link
 from bot.config import LOG_CHANNEL
 
@@ -49,7 +48,7 @@ async def handle_custom_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         try:
             link_info = await create_invite_link(
                 bot=context.bot,
-                group_id=group_id,
+                chat_id=group_id,
                 creator_id=user_id,
                 expiry_date=expiry_date,
                 max_uses=max_uses
