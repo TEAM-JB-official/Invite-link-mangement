@@ -35,7 +35,7 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if link["max_uses"] == 1 or link["current_uses"] + 1 >= link["max_uses"]:
         await revoke_link_by_id(link_id, context.bot)
 
-    # ----- WELCOME MESSAGE – PLAIN TEXT (no HTML, no Markdown) -----
+    # ----- PLAIN TEXT WELCOME (NO HTML, NO PARSE_MODE) -----
     welcome_text = (
         f"Hi {user.first_name},\n\n"
         f"🔹 This bot provides secure invite links for our group/channel.\n"
@@ -54,4 +54,5 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"ERROR sending welcome message: {e}")
         await send_log(context.bot, f"❌ Failed to send welcome: {e}")
+
     await send_log(context.bot, f"✅ New join: {user.full_name} (@{user.username}) used link {link['invite_link']}")
