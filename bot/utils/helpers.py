@@ -3,12 +3,12 @@ import string
 from datetime import datetime, timedelta
 from telegram import Bot
 from bot.database.mongo import get_db
-from bot.config import LOG_CHANNEL, NORMAL_MAX_DAYS, PREMIUM_MAX_DAYS
+from bot.config import LOG_CHANNEL
 
 def generate_referral_code(user_id):
     return f"REF{user_id}{''.join(random.choices(string.ascii_uppercase + string.digits, k=4))}"
 
-async def register_user(user_id, username, first_name, ref_code=None):
+async def register_user(user_id, username, first_name):
     db = get_db()
     existing = await db.users.find_one({"user_id": user_id})
     if not existing:
@@ -27,41 +27,40 @@ async def register_user(user_id, username, first_name, ref_code=None):
         return True
     return False
 
-async def grant_premium(user_id, days=1):
+async def create_invite_link(bot: Bot, chat_id: int, creator_id: int, expiry_date: datetime, max_uses: int):
+    """
+    Creates an invite link that works for both groups and channels.
+    - Groups: uses creates_join_request=True (auto‑approval)
+    - Channels: uses member_limit (direct join, no approval)
+    """
     db = get_db()
-    now = datetime.utcnow()
-    user = await db.users.find_one({"user_id": user_id})
-    if user and user.get("premium_expiry") and user["premium_expiry"] > now:
-        new_expiry = user["premium_expiry"] + timedelta(days=days)
+    chat = await bot.get_chat(chat_id)
+    is_group = chat.type in ["group", "supergroup"]
+    
+    if is_group:
+        link = await bot.create_chat_invite_link(
+            chat_id=chat_id,
+            expire_date=expiry_date,
+            creates_join_request=True
+        )
     else:
-        new_expiry = now + timedelta(days=days)
-    await db.users.update_one(
-        {"user_id": user_id},
-        {"$set": {"is_premium": True, "premium_expiry": new_expiry}}
-    )
-    await db.premium_users.update_one(
-        {"user_id": user_id},
-        {"$set": {"expiry_date": new_expiry, "plan_type": "referral"}},
-        upsert=True
-    )
-
-async def create_invite_link(bot: Bot, group_id: int, creator_id: int, expiry_date: datetime, max_uses: int):
-    db = get_db()
-    link = await bot.create_chat_invite_link(
-        chat_id=group_id,
-        expire_date=expiry_date,
-        creates_join_request=True
-    )
+        link = await bot.create_chat_invite_link(
+            chat_id=chat_id,
+            expire_date=expiry_date,
+            member_limit=max_uses
+        )
+    
     link_doc = {
         "link_id": link.invite_link.split("/")[-1],
         "invite_link": link.invite_link,
-        "group_id": group_id,
+        "chat_id": chat_id,
         "creator_id": creator_id,
         "max_uses": max_uses,
         "current_uses": 0,
         "expiry_date": expiry_date,
         "created_at": datetime.utcnow(),
-        "is_revoked": False
+        "is_revoked": False,
+        "is_group": is_group
     }
     await db.invite_links.insert_one(link_doc)
     return link_doc
@@ -73,7 +72,7 @@ async def revoke_link_by_id(link_id: str, bot: Bot):
         return
     try:
         await bot.edit_chat_invite_link(
-            chat_id=link["group_id"],
+            chat_id=link["chat_id"],
             invite_link=link["invite_link"],
             expire_date=datetime.utcnow(),
             member_limit=0
@@ -97,9 +96,22 @@ async def send_log(bot: Bot, message: str):
         except Exception as e:
             print(f"Failed to send log: {e}")
 
-async def send_welcome(bot: Bot, group_id: int, user, creator_id: int):
+async def send_welcome(bot: Bot, chat_id: int, user, creator_id: int):
     db = get_db()
-    group = await db.groups.find_one({"group_id": group_id})
+    welcome_text = (
+        f"Hi {user.mention_html()},\n\n"
+        f"🔹 This bot provides secure invite links for our group/channel.\n"
+        f"🔹 Each invite link may have a usage limit or expiry time.\n"
+        f"🔹 To receive your invite link, press the button below or use /start.\n\n"
+        f"📌 **Rules:**\n"
+        f"• Do not share invite links with others.\n"
+        f"• Expired links cannot be reused.\n"
+        f"• Contact an admin if you have any issues.\n\n"
+        f"Enjoy your stay! 🚀\n\n"
+        f"Created By @TeamJB_bot"
+    )
+    # Optional: retrieve custom welcome from DB if exists
+    group = await db.groups.find_one({"group_id": chat_id})
     if group and group.get("welcome_message"):
-        msg = group["welcome_message"].format(user=user.first_name, link_creator=str(creator_id))
-        await bot.send_message(group_id, msg)
+        welcome_text = group["welcome_message"].format(user=user.first_name, link_creator=str(creator_id))
+    await bot.send_message(chat_id, welcome_text, parse_mode="HTML")
