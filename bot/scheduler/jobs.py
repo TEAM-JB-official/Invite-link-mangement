@@ -12,21 +12,10 @@ async def cleanup_expired_links(bot):
     }).to_list(None)
     for link in expired:
         await revoke_link_by_id(link["link_id"], bot)
-    if expired:
-        logging.info(f"Cleaned up {len(expired)} expired links")
-
-async def update_premium_status():
-    db = get_db()
-    now = datetime.utcnow()
-    await db.users.update_many(
-        {"premium_expiry": {"$lt": now}, "is_premium": True},
-        {"$set": {"is_premium": False}}
-    )
-    await db.premium_users.delete_many({"expiry_date": {"$lt": now}})
+        logging.info(f"Cleaned up expired link {link['link_id']}")
 
 def setup_scheduler(bot):
     scheduler = AsyncIOScheduler()
     scheduler.add_job(cleanup_expired_links, 'interval', minutes=1, args=[bot])
-    scheduler.add_job(update_premium_status, 'interval', hours=1)
     scheduler.start()
     return scheduler
