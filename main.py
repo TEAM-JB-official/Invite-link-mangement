@@ -15,7 +15,7 @@ from bot.config import BOT_TOKEN, PORT
 from bot.database.mongo import init_db
 from bot.handlers import (
     start, create_link, active_links, revoke_link, revoke_all,
-    stats, settings, admins, backup, restore, dashboard, join_request, callback_handlers
+    stats, backup, restore, dashboard, join_request, callback_handlers
 )
 from bot.handlers.help import help_command
 from bot.handlers.set_default_link import set_default_link
@@ -56,7 +56,7 @@ health_thread.start()
 application = Application.builder().token(BOT_TOKEN).build()
 application.add_error_handler(error_handler)
 
-# Add handlers
+# Command handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("help", help_command))
 application.add_handler(CommandHandler("create_link", create_link))
@@ -71,8 +71,16 @@ application.add_handler(CommandHandler("restore", restore))
 application.add_handler(CommandHandler("dashboard", dashboard))
 application.add_handler(CommandHandler("addgroup", addgroup))
 application.add_handler(CommandHandler("setdefaultlink", set_default_link))
+
+# Message handlers for custom text input (create link, settings, admins)
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_input))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_settings_text))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_text))
+
+# Join request handler
 application.add_handler(ChatJoinRequestHandler(join_request))
+
+# Callback handler for inline keyboards
 application.add_handler(CallbackQueryHandler(callback_handlers))
 
 async def post_init(app: Application):
@@ -87,5 +95,4 @@ async def post_init(app: Application):
 application.post_init = post_init
 
 if __name__ == "__main__":
-    # Start polling with drop_pending_updates=True and a shorter read timeout
     application.run_polling(drop_pending_updates=True, read_timeout=30)
