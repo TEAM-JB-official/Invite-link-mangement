@@ -12,14 +12,13 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = get_db()
 
-    # Helper to send/edit message
     async def send_or_edit(text, reply_markup=None, parse_mode=None):
         if query.message:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
         else:
             await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    # Dashboard: Create Link
+    # Dashboard buttons
     if data == "dashboard_create":
         groups = await db.groups.find().to_list(None)
         if not groups:
@@ -30,7 +29,6 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit("Select a group:", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
-    # Dashboard: Active Links (same as before)
     if data == "dashboard_active":
         links = await db.invite_links.find({
             "creator_id": user_id,
@@ -48,7 +46,6 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         return
 
-    # Dashboard: Statistics
     if data == "dashboard_stats":
         total_links = await db.invite_links.count_documents({})
         active_links = await db.invite_links.count_documents({"is_revoked": False, "expiry_date": {"$gt": datetime.utcnow()}})
@@ -66,12 +63,10 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit(text, parse_mode="Markdown")
         return
 
-    # Dashboard: Settings (placeholder)
     if data == "dashboard_settings":
         await send_or_edit("Use /settings to configure bot settings.")
         return
 
-    # Dashboard: Logs
     if data == "dashboard_logs":
         if LOG_CHANNEL:
             await send_or_edit("Check the log channel for recent activity.")
@@ -79,7 +74,6 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_or_edit("No log channel configured.")
         return
 
-    # Dashboard: Backup
     if data == "dashboard_backup":
         if user_id != OWNER_ID:
             await send_or_edit("❌ Only the owner can perform backups.")
@@ -87,7 +81,6 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit("Please use /backup command to generate a backup.")
         return
 
-    # Dashboard: Admins
     if data == "dashboard_admins":
         if user_id != OWNER_ID:
             admin = await db.admins.find_one({"user_id": user_id})
@@ -104,13 +97,12 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         return
 
-    # Add admin flow
     if data == "add_admin":
         context.user_data["add_admin_step"] = "waiting_for_user_id"
         await send_or_edit("Send the Telegram user ID of the new admin.\nRole options: admin, super_admin")
         return
 
-    # Group selection for create link
+    # Group selection and link creation flow
     if data.startswith("creategroup_"):
         group_id = int(data.split("_")[1])
         context.user_data["create_group_id"] = group_id
@@ -172,12 +164,10 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["create_link_step"] = None
         return
 
-    # Revoke link from active_links panel
     if data.startswith("revoke_"):
         link_id = data.split("_")[1]
         await revoke_link_by_id(link_id, context.bot)
         await send_or_edit("Link revoked.")
         return
 
-    # If nothing matched
     await send_or_edit("Unknown command. Use /help.")
