@@ -23,6 +23,9 @@ from bot.handlers.message_handlers import handle_custom_input
 from bot.handlers.addgroup import addgroup
 from bot.handlers.settings import settings, settings_callback, handle_settings_text
 from bot.handlers.admins import admins, admins_callback, handle_admin_text
+from bot.handlers.setlogchannel import setlogchannel
+from bot.handlers.addadmin import addadmin
+from bot.handlers.setwelcome import setwelcome
 from bot.middleware.error_handler import error_handler
 from bot.scheduler.jobs import setup_scheduler
 
@@ -70,6 +73,9 @@ application.add_handler(CommandHandler("backup", backup))
 application.add_handler(CommandHandler("restore", restore))
 application.add_handler(CommandHandler("dashboard", dashboard))
 application.add_handler(CommandHandler("addgroup", addgroup))
+application.add_handler(CommandHandler("setlogchannel", setlogchannel))
+application.add_handler(CommandHandler("addadmin", addadmin))
+application.add_handler(CommandHandler("setwelcome", setwelcome))
 application.add_handler(CommandHandler("setdefaultlink", set_default_link))
 
 # Message handlers for custom text input (create link, settings, admins)
