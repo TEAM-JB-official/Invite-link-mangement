@@ -2,7 +2,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
-from bot.utils.helpers import revoke_link_by_id, send_log, send_welcome
+from bot.utils.helpers import revoke_link_by_id, send_log
 
 async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     request = update.chat_join_request
@@ -35,6 +35,18 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if link["max_uses"] == 1 or link["current_uses"] + 1 >= link["max_uses"]:
         await revoke_link_by_id(link_id, context.bot)
 
-    # Send welcome message
-    await send_welcome(context.bot, group_id, user, link["creator_id"])
+    # Send welcome message (exactly as you requested)
+    welcome_text = (
+        f"Hi <a href='tg://user?id={user.id}'>{user.first_name}</a>,\n\n"
+        f"🔹 This bot provides secure invite links for our group/channel.\n"
+        f"🔹 Each invite link may have a usage limit or expiry time.\n"
+        f"🔹 To receive your invite link, press the button below or use the available commands.\n\n"
+        f"📌 <b>Rules:</b>\n"
+        f"• Do not share invite links with others.\n"
+        f"• Expired links cannot be reused.\n"
+        f"• Contact an admin if you have any issues.\n\n"
+        f"Enjoy your stay! 🚀\n\n"
+        f"Created By @TeamJB_bot"
+    )
+    await context.bot.send_message(group_id, welcome_text, parse_mode="HTML")
     await send_log(context.bot, f"✅ New join: {user.full_name} (@{user.username}) used link {link['invite_link']}")
