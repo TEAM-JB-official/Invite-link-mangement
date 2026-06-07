@@ -1,15 +1,10 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
-from bot.utils.decorators import owner_only
+from bot.utils.decorators import owner_required
 
-@owner_only
+@owner_required
 async def set_default_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Set default invite link template.
-    Usage: /setdefaultlink <group_id> <expiry_seconds> <max_uses>
-    Example: /setdefaultlink -1003985321670 604800 1
-    """
     args = context.args
     if len(args) != 3:
         await update.message.reply_text(
@@ -34,7 +29,7 @@ async def set_default_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(
         f"✅ Default invite link set:\n"
-        f"Group: {group_id}\n"
+        f"Group ID: {group_id}\n"
         f"Expiry: {expiry_seconds} seconds ({expiry_seconds//3600} hours)\n"
         f"Max uses: {max_uses}\n\n"
         "New users will now receive this type of link on /start."
