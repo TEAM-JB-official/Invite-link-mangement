@@ -6,6 +6,7 @@ from bot.database.mongo import get_db
 from bot.config import LOG_CHANNEL, NORMAL_MAX_DAYS, PREMIUM_MAX_DAYS
 
 def generate_referral_code(user_id):
+    """Generate a unique referral code for a user"""
     return f"REF{user_id}{''.join(random.choices(string.ascii_uppercase + string.digits, k=4))}"
 
 async def register_user(user_id, username, first_name, ref_code=None):
@@ -29,6 +30,7 @@ async def register_user(user_id, username, first_name, ref_code=None):
     return False
 
 async def grant_premium(user_id, days=1):
+    """Grant premium access to a user for a given number of days"""
     db = get_db()
     now = datetime.utcnow()
     user = await db.users.find_one({"user_id": user_id})
@@ -47,6 +49,7 @@ async def grant_premium(user_id, days=1):
     )
 
 async def can_create_link(user_id):
+    """Check if user can create invite links (verified or premium)"""
     db = get_db()
     user = await db.users.find_one({"user_id": user_id})
     if not user:
@@ -58,6 +61,7 @@ async def can_create_link(user_id):
     return False
 
 def get_max_allowed_days(user_id):
+    """Get maximum allowed expiry days based on user's premium status"""
     db = get_db()
     user = db.users.find_one({"user_id": user_id})
     if user and user.get("is_premium", False) and user.get("premium_expiry", datetime.min) > datetime.utcnow():
@@ -65,12 +69,16 @@ def get_max_allowed_days(user_id):
     return NORMAL_MAX_DAYS
 
 async def create_invite_link(bot: Bot, group_id: int, creator_id: int, expiry_date: datetime, max_uses: int):
+    """
+    Create a Telegram invite link with join request approval.
+    Note: member_limit cannot be used with creates_join_request=True,
+    so we enforce the limit manually in the join request handler.
+    """
     db = get_db()
     link = await bot.create_chat_invite_link(
         chat_id=group_id,
         expire_date=expiry_date,
-        member_limit=max_uses,
-        creates_join_request=True
+        creates_join_request=True   # Required to track joins
     )
     link_doc = {
         "link_id": link.invite_link.split("/")[-1],
@@ -87,11 +95,13 @@ async def create_invite_link(bot: Bot, group_id: int, creator_id: int, expiry_da
     return link_doc
 
 async def revoke_link_by_id(link_id: str, bot: Bot):
+    """Revoke an invite link by setting its expiry to now and marking revoked in DB"""
     db = get_db()
     link = await db.invite_links.find_one({"link_id": link_id})
     if not link or link.get("is_revoked"):
         return
     try:
+        # Telegram doesn't have a direct revoke, but we can edit the link to expire immediately
         await bot.edit_chat_invite_link(
             chat_id=link["group_id"],
             invite_link=link["invite_link"],
@@ -99,10 +109,11 @@ async def revoke_link_by_id(link_id: str, bot: Bot):
             member_limit=0
         )
     except Exception as e:
-        print(f"Error revoking link: {e}")
+        print(f"Error revoking link {link_id}: {e}")
     await db.invite_links.update_one({"link_id": link_id}, {"$set": {"is_revoked": True}})
 
 def format_link_info(link):
+    """Format invite link information for display"""
     return (
         f"🔗 {link['invite_link']}\n"
         f"📊 Uses: {link['current_uses']}/{link['max_uses']}\n"
@@ -111,6 +122,7 @@ def format_link_info(link):
     )
 
 async def send_log(bot: Bot, message: str):
+    """Send a log message to the configured log channel (if any)"""
     if LOG_CHANNEL:
         try:
             await bot.send_message(LOG_CHANNEL, message)
@@ -118,6 +130,7 @@ async def send_log(bot: Bot, message: str):
             print(f"Failed to send log: {e}")
 
 async def send_welcome(bot: Bot, group_id: int, user, creator_id: int):
+    """Send a welcome message to a user who joined via an invite link"""
     db = get_db()
     group = await db.groups.find_one({"group_id": group_id})
     if group and group.get("welcome_message"):
