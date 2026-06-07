@@ -35,9 +35,9 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if link["max_uses"] == 1 or link["current_uses"] + 1 >= link["max_uses"]:
         await revoke_link_by_id(link_id, context.bot)
 
-    # ----- WELCOME MESSAGE (with error logging) -----
+    # ----- WELCOME MESSAGE (plain text + safe HTML) -----
     welcome_text = (
-        f"Hi <a href='tg://user?id={user.id}'>{user.first_name}</a>,\n\n"
+        f"<b>Hi {user.first_name}</b>,\n\n"
         f"🔹 This bot provides secure invite links for our group/channel.\n"
         f"🔹 Each invite link may have a usage limit or expiry time.\n"
         f"🔹 To receive your invite link, press the button below or use /start.\n\n"
@@ -50,8 +50,8 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     try:
         await context.bot.send_message(group_id, welcome_text, parse_mode="HTML")
-        print(f"Welcome message sent to {group_id} for user {user.id}")
     except Exception as e:
-        print(f"ERROR sending welcome message: {e}")
-        await send_log(context.bot, f"❌ Failed to send welcome message: {e}")
+        print(f"Welcome error: {e}")
+        # Fallback: send without formatting
+        await context.bot.send_message(group_id, welcome_text.replace("<b>", "").replace("</b>", ""))
     await send_log(context.bot, f"✅ New join: {user.full_name} (@{user.username}) used link {link['invite_link']}")
