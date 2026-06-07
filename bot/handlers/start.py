@@ -32,45 +32,62 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     expiry_seconds = template["expiry_seconds"]
     max_uses = template["max_uses"]
 
-    # Find ANY existing link for this user and chat (including expired/revoked)
-    existing_link = await db.invite_links.find_one({
-        "creator_id": user.id,
-        "chat_id": chat_id
-    })
+    # --- NEW: Check if user is already a member of the target chat ---
+    try:
+        chat_member = await context.bot.get_chat_member(chat_id, user.id)
+        is_member = chat_member.status in ("member", "administrator", "creator")
+    except Exception as e:
+        # If the bot can't get member info (e.g., not admin, chat not found), assume not member
+        print(f"Error checking membership for user {user.id}: {e}")
+        is_member = False
 
-    # Check if the existing link is still valid
-    is_valid = False
-    if existing_link:
-        is_valid = (
-            not existing_link.get("is_revoked", False) and
-            existing_link["expiry_date"] > datetime.utcnow() and
-            existing_link["current_uses"] < existing_link["max_uses"]
+    if is_member:
+        # User is already a member – show welcome message and do NOT create a new link
+        welcome_text = (
+            f"Hi {user.first_name},\n\n"
+            f"🔹 This bot provides secure invite links for our group/channel.\n"
+            f"🔹 You are already a member of our group/channel.\n"
+            f"🔹 Your previous invite link has been used and is now disabled.\n\n"
+            f"📌 Rules:\n"
+            f"• Do not share invite links with others.\n"
+            f"• Expired or revoked links cannot be reused.\n"
+            f"• Contact an admin if you have any issues.\n\n"
+            f"Enjoy your stay! 🚀\n\n"
+            f"Created By @TeamJB_bot"
         )
-
-    if is_valid:
-        # Link is still active – resend it
-        remaining = existing_link["max_uses"] - existing_link["current_uses"]
-        await update.message.reply_text(
-            f"✅ **Invite link created for you:**\n{existing_link['invite_link']}\n\n"
-            f"⏰ Expires: {existing_link['expiry_date']}\n"
-            f"👥 Max uses: {existing_link['max_uses']}\n\n"
-            f"**You already have an active invite link:**\n{existing_link['invite_link']}\n\n"
-            f"Expires: {existing_link['expiry_date']}\n"
-            f"Remaining uses: {remaining}\n\n"
-            "Click the link to join. You will be automatically approved.",
-        )
+        await update.message.reply_text(welcome_text)
         return
 
-    # No valid link – create a NEW one
-    # First, revoke any old link (if exists)
-    if existing_link:
-        await revoke_link_by_id(existing_link["link_id"], context.bot)
-        await db.invite_links.update_one(
-            {"_id": existing_link["_id"]},
-            {"$set": {"is_revoked": True}}
-        )
+    # --- User is NOT a member → proceed with invite link creation ---
+    # Check for any existing active link (not revoked, not expired)
+    existing_link = await db.invite_links.find_one({
+        "creator_id": user.id,
+        "chat_id": chat_id,
+        "is_revoked": False,
+        "expiry_date": {"$gt": datetime.utcnow()}
+    })
 
-    # Create fresh link
+    if existing_link and existing_link["current_uses"] < existing_link["max_uses"]:
+        # Resend the active link
+        remaining = existing_link["max_uses"] - existing_link["current_uses"]
+        text = (
+            f"✅ Invite link created for you:\n{existing_link['invite_link']}\n\n"
+            f"Expires: {existing_link['expiry_date']}\n"
+            f"Max uses: {existing_link['max_uses']}\n\n"
+            f"You already have an active invite link:\n{existing_link['invite_link']}\n\n"
+            f"Expires: {existing_link['expiry_date']}\n"
+            f"Remaining uses: {remaining}\n\n"
+            "Click the link to join. You will be automatically approved."
+        )
+        await update.message.reply_text(text)
+        return
+
+    # Revoke any old links (if they exist and are not valid)
+    old_links = await db.invite_links.find({"creator_id": user.id, "chat_id": chat_id}).to_list(None)
+    for old in old_links:
+        await revoke_link_by_id(old["link_id"], context.bot)
+
+    # Create a fresh link
     expiry_date = datetime.utcnow() + timedelta(seconds=expiry_seconds)
     try:
         link_info = await create_invite_link(
@@ -80,12 +97,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             expiry_date=expiry_date,
             max_uses=max_uses
         )
-        await update.message.reply_text(
-            f"✅ **Invite link created for you:**\n{link_info['invite_link']}\n\n"
-            f"⏰ Expires: {expiry_date}\n"
-            f"👥 Max uses: {max_uses}\n\n"
-            "Click the link to join. You will be automatically approved.",
+        text = (
+            f"✅ Invite link created for you:\n{link_info['invite_link']}\n\n"
+            f"Expires: {expiry_date}\n"
+            f"Max uses: {max_uses}\n\n"
+            "Click the link to join. You will be automatically approved."
         )
+        await update.message.reply_text(text)
         if LOG_CHANNEL:
             await context.bot.send_message(LOG_CHANNEL, f"🔗 New default link for user {user.id}: {link_info['invite_link']}")
     except Exception as e:
