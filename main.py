@@ -17,6 +17,7 @@ from bot.handlers import (
     start, create_link, active_links, revoke_link, revoke_all,
     stats, settings, admins, backup, restore, dashboard, join_request, callback_handlers
 )
+from bot.handlers.help import help_command
 from bot.handlers.set_default_link import set_default_link
 from bot.handlers.message_handlers import handle_custom_input
 from bot.handlers.addgroup import addgroup
@@ -55,6 +56,7 @@ application.add_error_handler(error_handler)
 
 # Add handlers
 application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("help", help_command))
 application.add_handler(CommandHandler("create_link", create_link))
 application.add_handler(CommandHandler("active_links", active_links))
 application.add_handler(CommandHandler("revoke_link", revoke_link))
