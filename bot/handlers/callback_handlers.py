@@ -12,7 +12,7 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = get_db()
 
-    # Helper to send/edit message from callback
+    # Helper to send/edit message
     async def send_or_edit(text, reply_markup=None, parse_mode=None):
         if query.message:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
@@ -21,17 +21,16 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Dashboard: Create Link
     if data == "dashboard_create":
-        # Get groups where bot is admin
         groups = await db.groups.find().to_list(None)
         if not groups:
-            await send_or_edit("❌ I'm not admin in any group yet. Add me as admin first.")
+            await send_or_edit("❌ I'm not admin in any group yet. Use /addgroup to add a group.")
             return
         context.user_data["create_link_step"] = "group"
         keyboard = [[InlineKeyboardButton(g["title"], callback_data=f"creategroup_{g['group_id']}")] for g in groups]
         await send_or_edit("Select a group:", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
-    # Dashboard: Active Links
+    # Dashboard: Active Links (same as before)
     if data == "dashboard_active":
         links = await db.invite_links.find({
             "creator_id": user_id,
@@ -67,10 +66,8 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit(text, parse_mode="Markdown")
         return
 
-    # Dashboard: Settings (just a placeholder, full implementation in separate handler)
+    # Dashboard: Settings (placeholder)
     if data == "dashboard_settings":
-        # You can implement settings menu here or call the settings command properly
-        # For now, inform user to use /settings
         await send_or_edit("Use /settings to configure bot settings.")
         return
 
@@ -84,24 +81,15 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Dashboard: Backup
     if data == "dashboard_backup":
-        # Check if user is owner
         if user_id != OWNER_ID:
             await send_or_edit("❌ Only the owner can perform backups.")
             return
-        # Import backup function
-        from bot.handlers.backup import backup
-        # We need to call backup with a message context, but we can simulate a command
-        # For simplicity, just run backup logic here
-        # Since backup sends a file, it's easier to call the command handler with a synthetic update?
-        # Instead, we'll call the existing backup function, but it expects a message.
-        # For now, advise user to use /backup command.
         await send_or_edit("Please use /backup command to generate a backup.")
         return
 
     # Dashboard: Admins
     if data == "dashboard_admins":
         if user_id != OWNER_ID:
-            # Check if user is super_admin or owner
             admin = await db.admins.find_one({"user_id": user_id})
             if not admin or admin.get("role") not in ["owner", "super_admin"]:
                 await send_or_edit("❌ You don't have permission to manage admins.")
@@ -116,7 +104,7 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         return
 
-    # Add admin flow (simplified)
+    # Add admin flow
     if data == "add_admin":
         context.user_data["add_admin_step"] = "waiting_for_user_id"
         await send_or_edit("Send the Telegram user ID of the new admin.\nRole options: admin, super_admin")
