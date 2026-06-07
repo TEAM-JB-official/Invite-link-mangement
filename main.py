@@ -21,6 +21,8 @@ from bot.handlers.help import help_command
 from bot.handlers.set_default_link import set_default_link
 from bot.handlers.message_handlers import handle_custom_input
 from bot.handlers.addgroup import addgroup
+from bot.handlers.settings import settings, settings_callback, handle_settings_text
+from bot.handlers.admins import admins, admins_callback, handle_admin_text
 from bot.middleware.error_handler import error_handler
 from bot.scheduler.jobs import setup_scheduler
 
