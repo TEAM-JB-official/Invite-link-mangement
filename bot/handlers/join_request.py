@@ -6,7 +6,9 @@ from bot.utils.helpers import revoke_link_by_id, send_log
 
 async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     request = update.chat_join_request
-    link_id = request.invite_link.id
+    # Extract link_id from the invite URL (the part after the last '/')
+    invite_url = request.invite_link.invite_link
+    link_id = invite_url.split("/")[-1]
     user = request.from_user
     group_id = request.chat.id
     db = get_db()
@@ -35,7 +37,7 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if link["max_uses"] == 1 or link["current_uses"] + 1 >= link["max_uses"]:
         await revoke_link_by_id(link_id, context.bot)
 
-    # ----- PLAIN TEXT WELCOME (NO HTML, NO PARSE_MODE) -----
+    # ----- PLAIN TEXT WELCOME MESSAGE (no HTML) -----
     welcome_text = (
         f"Hi {user.first_name},\n\n"
         f"🔹 This bot provides secure invite links for our group/channel.\n"
