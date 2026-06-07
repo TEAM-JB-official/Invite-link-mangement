@@ -9,3 +9,5 @@ from .backup import backup, restore
 from .dashboard import dashboard
 from .join_request import join_request
 from .callback_handlers import callback_handlers
+from .set_default_link import set_default_link
+from .message_handlers import handle_custom_input
