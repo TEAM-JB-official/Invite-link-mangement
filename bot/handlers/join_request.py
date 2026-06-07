@@ -27,7 +27,7 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.link_usage.insert_one({
         "user_id": user.id,
         "link_id": link_id,
-        "group_id": group_id,
+        "chat_id": group_id,
         "joined_at": datetime.utcnow()
     })
     await db.invite_links.update_one({"link_id": link_id}, {"$inc": {"current_uses": 1}})
