@@ -5,18 +5,17 @@ from bot.database.mongo import get_db
 from bot.utils.helpers import create_invite_link, revoke_link_by_id, format_link_info
 from bot.config import LOG_CHANNEL, OWNER_ID
 
+# ------------------------------------------------------------------
+# Main callback dispatcher
+# ------------------------------------------------------------------
 async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Handles all inline keyboard callbacks for dashboard, create link flow,
-    revoke links, and admin management.
-    """
     query = update.callback_query
     await query.answer()
     data = query.data
     user_id = update.effective_user.id
     db = get_db()
 
-    # Helper to send or edit a message from a callback
+    # Helper to send or edit a message
     async def send_or_edit(text, reply_markup=None, parse_mode=None):
         if query.message:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
@@ -71,8 +70,9 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "dashboard_settings":
-        await send_or_edit("Use /settings to configure bot settings.\n\n"
-                           "You can set welcome messages per group and log channels there.")
+        # Forward to settings callback
+        from bot.handlers.settings import settings_callback
+        await settings_callback(update, context)
         return
 
     if data == "dashboard_logs":
@@ -90,24 +90,25 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "dashboard_admins":
-        if user_id != OWNER_ID:
-            admin = await db.admins.find_one({"user_id": user_id})
-            if not admin or admin.get("role") not in ["owner", "super_admin"]:
-                await send_or_edit("❌ You don't have permission to manage admins.")
-                return
-        admins_list = await db.admins.find().to_list(None)
-        text = "👥 *Admin List*\n\n"
-        for a in admins_list:
-            user = await db.users.find_one({"user_id": a["user_id"]})
-            name = user["first_name"] if user else str(a["user_id"])
-            text += f"- {name} ({a['role']})\n"
-        keyboard = [[InlineKeyboardButton("Add Admin", callback_data="add_admin")]]
-        await send_or_edit(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        # Forward to admins callback
+        from bot.handlers.admins import admins_callback
+        await admins_callback(update, context)
         return
 
-    if data == "add_admin":
-        context.user_data["add_admin_step"] = "waiting_for_user_id"
-        await send_or_edit("Send the Telegram user ID of the new admin.\nRole options: admin, super_admin")
+    # ------------------------------------------------------------------
+    # Settings callbacks (welcome message, log channel)
+    # ------------------------------------------------------------------
+    if data.startswith("settings_group_") or data.startswith("set_welcome_") or data.startswith("set_logchannel_") or data == "settings_back_to_groups" or data == "dashboard_settings_back":
+        from bot.handlers.settings import settings_callback
+        await settings_callback(update, context)
+        return
+
+    # ------------------------------------------------------------------
+    # Admins callbacks (add admin)
+    # ------------------------------------------------------------------
+    if data == "add_admin" or data == "dashboard_admins_back":
+        from bot.handlers.admins import admins_callback
+        await admins_callback(update, context)
         return
 
     # ------------------------------------------------------------------
@@ -159,7 +160,6 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         expiry_date = datetime.utcnow() + timedelta(seconds=expiry_seconds)
         try:
-            # Get chat type automatically inside create_invite_link
             link_info = await create_invite_link(
                 bot=context.bot,
                 chat_id=group_id,
@@ -168,9 +168,9 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 max_uses=max_uses
             )
             await send_or_edit(
-                f"✅ **Invite link created:**\n{link_info['invite_link']}\n\n"
-                f"⏰ Expires: {expiry_date}\n"
-                f"👥 Max uses: {max_uses}",
+                f"✅ Invite link created:\n{link_info['invite_link']}\n\n"
+                f"Expires: {expiry_date}\n"
+                f"Max uses: {max_uses}"
             )
             if LOG_CHANNEL:
                 await context.bot.send_message(
@@ -179,7 +179,7 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         except Exception as e:
             await send_or_edit(f"❌ Failed to create link: {str(e)}")
-        # Clear the flow data
+        # Clear flow data
         context.user_data["create_link_step"] = None
         return
 
