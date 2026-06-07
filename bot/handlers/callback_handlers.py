@@ -5,9 +5,6 @@ from bot.database.mongo import get_db
 from bot.utils.helpers import create_invite_link, revoke_link_by_id, format_link_info
 from bot.config import LOG_CHANNEL, OWNER_ID
 
-# ------------------------------------------------------------------
-# Main callback dispatcher
-# ------------------------------------------------------------------
 async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -15,16 +12,13 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = get_db()
 
-    # Helper to send or edit a message
     async def send_or_edit(text, reply_markup=None, parse_mode=None):
         if query.message:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
         else:
             await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    # ------------------------------------------------------------------
     # Dashboard main buttons
-    # ------------------------------------------------------------------
     if data == "dashboard_create":
         groups = await db.groups.find().to_list(None)
         if not groups:
@@ -44,12 +38,12 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not links:
             await send_or_edit("No active invite links.")
             return
-        text = "🔗 *Your active invite links*\n\n"
+        text = "🔗 Your active invite links\n\n"
         keyboard = []
         for link in links:
             text += format_link_info(link)
             keyboard.append([InlineKeyboardButton(f"Revoke {link['invite_link'][:30]}", callback_data=f"revoke_{link['link_id']}")])
-        await send_or_edit(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await send_or_edit(text, reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
     if data == "dashboard_stats":
@@ -59,18 +53,17 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total_users = await db.users.count_documents({})
         premium_users = await db.users.count_documents({"is_premium": True, "premium_expiry": {"$gt": datetime.utcnow()}})
         text = (
-            f"📊 *Bot Statistics*\n\n"
+            f"📊 Bot Statistics\n\n"
             f"🔗 Total links created: {total_links}\n"
             f"✅ Active links: {active_links}\n"
             f"👥 Total joins: {total_joins}\n"
             f"👤 Registered users: {total_users}\n"
             f"⭐ Premium users: {premium_users}\n"
         )
-        await send_or_edit(text, parse_mode="Markdown")
+        await send_or_edit(text)
         return
 
     if data == "dashboard_settings":
-        # Forward to settings callback
         from bot.handlers.settings import settings_callback
         await settings_callback(update, context)
         return
@@ -90,30 +83,25 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "dashboard_admins":
-        # Forward to admins callback
         from bot.handlers.admins import admins_callback
         await admins_callback(update, context)
         return
 
-    # ------------------------------------------------------------------
-    # Settings callbacks (welcome message, log channel)
-    # ------------------------------------------------------------------
-    if data.startswith("settings_group_") or data.startswith("set_welcome_") or data.startswith("set_logchannel_") or data == "settings_back_to_groups" or data == "dashboard_settings_back":
+    # Settings callbacks
+    if (data.startswith("settings_group_") or data.startswith("set_welcome_") or
+        data.startswith("set_logchannel_") or data == "settings_back_to_groups" or
+        data == "dashboard_settings_back"):
         from bot.handlers.settings import settings_callback
         await settings_callback(update, context)
         return
 
-    # ------------------------------------------------------------------
-    # Admins callbacks (add admin)
-    # ------------------------------------------------------------------
+    # Admins callbacks
     if data == "add_admin" or data == "dashboard_admins_back":
         from bot.handlers.admins import admins_callback
         await admins_callback(update, context)
         return
 
-    # ------------------------------------------------------------------
-    # Create link flow – group selection
-    # ------------------------------------------------------------------
+    # Create link flow
     if data.startswith("creategroup_"):
         group_id = int(data.split("_")[1])
         context.user_data["create_group_id"] = group_id
@@ -179,20 +167,15 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         except Exception as e:
             await send_or_edit(f"❌ Failed to create link: {str(e)}")
-        # Clear flow data
         context.user_data["create_link_step"] = None
         return
 
-    # ------------------------------------------------------------------
     # Revoke link from active_links panel
-    # ------------------------------------------------------------------
     if data.startswith("revoke_"):
         link_id = data.split("_")[1]
         await revoke_link_by_id(link_id, context.bot)
         await send_or_edit("✅ Link revoked successfully.")
         return
 
-    # ------------------------------------------------------------------
-    # Fallback for unknown callback
-    # ------------------------------------------------------------------
+    # Fallback
     await send_or_edit("❓ Unknown command. Use /help for available commands.")
