@@ -31,12 +31,12 @@ def owner_required(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         db = get_db()
         admin = await db.admins.find_one({"user_id": update.effective_user.id})
-        if not admin or admin.get("role") != "owner":
+        from bot.config import OWNER_ID
+        if update.effective_user.id != OWNER_ID and (not admin or admin.get("role") != "owner"):
             await update.message.reply_text("❌ Owner privilege required.")
             return
         return await func(update, context, *args, **kwargs)
     return wrapper
-
 # Alias for owner_only (same as owner_required)
 owner_only = owner_required
 
