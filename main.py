@@ -38,11 +38,26 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path in ('/', '/health'):
             self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(b'OK')
+            self.wfile.write(b"OK")
+        else:
+            self.send_response(404)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Not Found")
+
+    def do_HEAD(self):
+        if self.path in ('/', '/health'):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
+
     def log_message(self, format, *args):
         pass
 
@@ -91,14 +106,22 @@ application.add_handler(CallbackQueryHandler(callback_handlers))
 
 async def post_init(app: Application):
     await init_db()
+
     # Delete webhook and wait 5 seconds for Telegram to close old connections
     await app.bot.delete_webhook(drop_pending_updates=True)
-    logging.info("Deleted webhook, waiting 5 seconds for Telegram to release old polling connections...")
+    logging.info(
+        "Deleted webhook, waiting 5 seconds for Telegram to release old polling connections..."
+    )
+
     await asyncio.sleep(5)
+
     setup_scheduler(app.bot)
     logging.info("Bot initialised")
 
 application.post_init = post_init
 
 if __name__ == "__main__":
-    application.run_polling(drop_pending_updates=True, read_timeout=30)
+    application.run_polling(
+        drop_pending_updates=True,
+        read_timeout=30
+    )
