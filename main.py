@@ -32,7 +32,6 @@ from bot.handlers.activelinkmode import activelinkmode
 from bot.handlers.setactivelink import setactivelink
 from bot.handlers.defaultlinkstatus import defaultlinkstatus
 from bot.handlers.listlinks import listlinks
-from bot.handlers.adddefaults import adddefaults
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -101,7 +100,6 @@ application.add_handler(CommandHandler("activelinkmode", activelinkmode))
 application.add_handler(CommandHandler("setactivelink", setactivelink))
 application.add_handler(CommandHandler("defaultlinkstatus", defaultlinkstatus))
 application.add_handler(CommandHandler("listlinks", listlinks))
-application.add_handler(CommandHandler("adddefaults", adddefaults))
 
 # Message handlers for custom text input (create link, settings, admins)
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_input))
