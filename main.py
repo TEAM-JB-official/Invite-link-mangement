@@ -28,6 +28,9 @@ from bot.handlers.addadmin import addadmin
 from bot.handlers.setwelcome import setwelcome
 from bot.middleware.error_handler import error_handler
 from bot.scheduler.jobs import setup_scheduler
+from bot.handlers.activelinkmode import activelinkmode
+from bot.handlers.setactivelink import setactivelink
+from bot.handlers.defaultlinkstatus import defaultlinkstatus
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -92,6 +95,9 @@ application.add_handler(CommandHandler("setlogchannel", setlogchannel))
 application.add_handler(CommandHandler("addadmin", addadmin))
 application.add_handler(CommandHandler("setwelcome", setwelcome))
 application.add_handler(CommandHandler("setdefaultlink", set_default_link))
+application.add_handler(CommandHandler("activelinkmode", activelinkmode))
+application.add_handler(CommandHandler("setactivelink", setactivelink))
+application.add_handler(CommandHandler("defaultlinkstatus", defaultlinkstatus))
 
 # Message handlers for custom text input (create link, settings, admins)
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_input))
