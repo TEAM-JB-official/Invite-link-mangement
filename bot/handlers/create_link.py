@@ -2,14 +2,12 @@ from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
-from bot.config import OWNER_IDS   # list of owner IDs
+from bot.config import OWNER_IDS
 from bot.utils.decorators import log_command
 
 @log_command
 async def create_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Start the interactive flow to create a custom invite link (owner only).
-    """
+    """Start the interactive flow to create a custom invite link (owner only)."""
     user_id = update.effective_user.id
 
     # Only owners can use this command
