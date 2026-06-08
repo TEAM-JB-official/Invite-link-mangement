@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db, get_bot_setting
-from bot.config import OWNER_ID, LOG_CHANNEL
+from bot.config import OWNER_IDS, LOG_CHANNEL   # list of owner IDs
 from bot.utils.helpers import register_user, create_invite_link, revoke_link_by_id
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -10,8 +10,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = get_db()
     await register_user(user.id, user.username, user.first_name)
 
-    # Owner welcome (no link generated)
-    if user.id == OWNER_ID:
+    # Owner welcome (no link generated) – check if user is in OWNER_IDS
+    if user.id in OWNER_IDS:
         await update.message.reply_text(
             f"Welcome back, {user.first_name} (Owner).\n"
             "Use /setdefaultlink to configure default auto‑links.\n"
