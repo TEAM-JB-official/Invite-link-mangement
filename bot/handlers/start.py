@@ -20,11 +20,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # --- Check mode ---
+    # Check mode
     create_mode = await get_bot_setting("create_link_mode", False)
 
     if create_mode:
-        # SYSTEM 2: fixed active links (owner‑selected)
+        # SYSTEM 2: fixed active links
         active_ids = await get_bot_setting("active_link_ids", [])
         if not active_ids:
             await update.message.reply_text(
@@ -47,17 +47,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Build message
-        message_lines = []
+        # Build plain text message
+        lines = []
         for link in valid_links:
             group = await db.groups.find_one({"group_id": link["chat_id"]})
             chat_title = group["title"] if group else f"Chat {link['chat_id']}"
-            message_lines.append(f"📢 *{chat_title}*")
-            message_lines.append(f"✅ Invite link:\n{link['invite_link']}")
-            message_lines.append(f"⏰ Expires: {link['expiry_date']}")
-            message_lines.append(f"👥 Remaining uses: {link['max_uses'] - link['current_uses']}")
-            message_lines.append("───────────────────")
-        await update.message.reply_text("\n".join(message_lines), parse_mode="Markdown")
+            lines.append(f"📢 {chat_title}")
+            lines.append(f"✅ Invite link:\n{link['invite_link']}")
+            lines.append(f"⏰ Expires: {link['expiry_date']}")
+            lines.append(f"👥 Remaining uses: {link['max_uses'] - link['current_uses']}")
+            lines.append("───────────────────")
+        await update.message.reply_text("\n".join(lines))
         return
 
     else:
@@ -66,7 +66,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not templates:
             await update.message.reply_text(
                 "❌ No default invite link templates set.\n"
-                "Please contact the admin to run `/setdefaultlink` for at least one chat."
+                "Please contact the admin to run /setdefaultlink for at least one chat."
             )
             return
 
@@ -76,16 +76,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             expiry_seconds = tmpl["expiry_seconds"]
             max_uses = tmpl["max_uses"]
 
-            # Skip if user already a member of this chat
+            # Skip if user already member
             try:
                 chat_member = await context.bot.get_chat_member(chat_id, user.id)
-                is_member = chat_member.status in ("member", "administrator", "creator")
-                if is_member:
+                if chat_member.status in ("member", "administrator", "creator"):
                     continue
             except:
-                pass  # assume not member
+                pass
 
-            # Check for existing active link for this user+chat
+            # Check existing link
             existing = await db.invite_links.find_one({
                 "creator_id": user.id,
                 "chat_id": chat_id,
@@ -96,7 +95,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 valid_links.append(existing)
                 continue
 
-            # Revoke old links and create a fresh one
+            # Revoke old links and create new
             old_links = await db.invite_links.find({"creator_id": user.id, "chat_id": chat_id}).to_list(None)
             for old in old_links:
                 await revoke_link_by_id(old["link_id"], context.bot)
@@ -117,7 +116,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"Error creating link for {chat_id}: {e}")
 
         if not valid_links:
-            # User is already a member of all configured chats
             await update.message.reply_text(
                 f"Hi {user.first_name},\n\n"
                 "🔹 You are already a member of all our groups/channels.\n"
@@ -131,14 +129,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Build message
-        message_lines = []
+        # Build plain text message
+        lines = []
         for link in valid_links:
             group = await db.groups.find_one({"group_id": link["chat_id"]})
             chat_title = group["title"] if group else f"Chat {link['chat_id']}"
-            message_lines.append(f"📢 *{chat_title}*")
-            message_lines.append(f"✅ Invite link created for you:\n{link['invite_link']}")
-            message_lines.append(f"⏰ Expires: {link['expiry_date']}")
-            message_lines.append(f"👥 Max uses: {link['max_uses']}")
-            message_lines.append("───────────────────")
-        await update.message.reply_text("\n".join(message_lines), parse_mode="Markdown")
+            lines.append(f"📢 {chat_title}")
+            lines.append(f"✅ Invite link created for you:\n{link['invite_link']}")
+            lines.append(f"⏰ Expires: {link['expiry_date']}")
+            lines.append(f"👥 Max uses: {link['max_uses']}")
+            lines.append("───────────────────")
+        await update.message.reply_text("\n".join(lines))
