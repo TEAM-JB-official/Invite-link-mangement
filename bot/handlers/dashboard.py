@@ -1,10 +1,22 @@
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from bot.database.mongo import get_db
+from bot.config import OWNER_ID
 from bot.utils.decorators import log_command
 
 @log_command
 async def dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    db = get_db()
+
+    # Check if user is owner or admin
+    if user_id != OWNER_ID:
+        admin = await db.admins.find_one({"user_id": user_id})
+        if not admin:
+            await update.message.reply_text("❌ Admin privilege required to access the dashboard.")
+            return
+
     keyboard = [
         [InlineKeyboardButton("➕ Create Link", callback_data="dashboard_create")],
         [InlineKeyboardButton("📋 Active Links", callback_data="dashboard_active")],
