@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
-from bot.config import OWNER_ID
+from bot.config import OWNER_IDS   # list of owner IDs
 from bot.utils.decorators import log_command
 
 @log_command
@@ -12,8 +12,8 @@ async def create_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user_id = update.effective_user.id
 
-    # Only owner can use this command
-    if user_id != OWNER_ID:
+    # Only owners can use this command
+    if user_id not in OWNER_IDS:
         await update.message.reply_text("❌ Only the bot owner can create custom invite links.")
         return
 
