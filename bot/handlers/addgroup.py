@@ -1,11 +1,12 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
-from bot.config import OWNER_ID
+from bot.config import OWNER_IDS  # import the list of owner IDs
 
 async def addgroup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if user_id != OWNER_ID:
+    # Check if user is in the list of owners
+    if user_id not in OWNER_IDS:
         await update.message.reply_text("❌ Only the owner can add groups.")
         return
     if len(context.args) < 2:
