@@ -18,13 +18,18 @@ async def listlinks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chunk = links[i:i+chunk_size]
         text = "📋 All Invite Links\n\n"
         for link in chunk:
-            group = await db.groups.find_one({"group_id": link["chat_id"]})
-            chat_title = group["title"] if group else str(link["chat_id"])
+            # Safely get chat_id; fallback to "unknown" if missing
+            chat_id = link.get("chat_id")
+            if chat_id:
+                group = await db.groups.find_one({"group_id": chat_id})
+                chat_title = group["title"] if group else str(chat_id)
+            else:
+                chat_title = "Unknown (old link)"
             text += f"📌 Chat: {chat_title}\n"
-            text += f"🔗 {link['invite_link']}\n"
-            text += f"🆔 {link['link_id']}\n"
-            text += f"📊 Uses: {link['current_uses']}/{link['max_uses']}\n"
-            text += f"⏰ Expires: {link['expiry_date']}\n"
-            text += f"👤 Creator: {link['creator_id']}\n"
+            text += f"🔗 {link.get('invite_link', 'No link')}\n"
+            text += f"🆔 {link.get('link_id', 'No ID')}\n"
+            text += f"📊 Uses: {link.get('current_uses', 0)}/{link.get('max_uses', 0)}\n"
+            text += f"⏰ Expires: {link.get('expiry_date', 'Unknown')}\n"
+            text += f"👤 Creator: {link.get('creator_id', 'Unknown')}\n"
             text += "───────────────────\n"
         await update.message.reply_text(text)
