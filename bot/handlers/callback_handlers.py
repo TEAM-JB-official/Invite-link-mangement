@@ -3,7 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
 from bot.utils.helpers import create_invite_link, revoke_link_by_id, format_link_info
-from bot.config import LOG_CHANNEL, OWNER_ID
+from bot.config import LOG_CHANNEL, OWNER_IDS   # list of owner IDs
 
 async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -12,16 +12,13 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = get_db()
 
-    # Helper to send or edit a message
     async def send_or_edit(text, reply_markup=None, parse_mode=None):
         if query.message:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
         else:
             await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    # ------------------------------------------------------------------
     # Dashboard main buttons
-    # ------------------------------------------------------------------
     if data == "dashboard_create":
         groups = await db.groups.find().to_list(None)
         if not groups:
@@ -68,7 +65,7 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Dashboard Settings – requires admin (owner or super_admin/admin)
     if data == "dashboard_settings":
-        if user_id != OWNER_ID:
+        if user_id not in OWNER_IDS:
             admin = await db.admins.find_one({"user_id": user_id})
             if not admin:
                 await send_or_edit("❌ Admin privilege required to change settings.")
@@ -85,7 +82,7 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "dashboard_backup":
-        if user_id != OWNER_ID:
+        if user_id not in OWNER_IDS:
             await send_or_edit("❌ Only the owner can perform backups.")
             return
         await send_or_edit("Please use /backup command to generate a backup.")
@@ -93,21 +90,19 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Dashboard Admins – owner only
     if data == "dashboard_admins":
-        if user_id != OWNER_ID:
+        if user_id not in OWNER_IDS:
             await send_or_edit("❌ Only the bot owner can manage admins.")
             return
         from bot.handlers.admins import admins_callback
         await admins_callback(update, context)
         return
 
-    # ------------------------------------------------------------------
     # Settings callbacks (group selection, set welcome, set log channel)
-    # ------------------------------------------------------------------
     if (data.startswith("settings_group_") or data.startswith("set_welcome_") or
         data.startswith("set_logchannel_") or data == "settings_back_to_groups" or
         data == "dashboard_settings_back"):
         # Permission check – owner or admin
-        if user_id != OWNER_ID:
+        if user_id not in OWNER_IDS:
             admin = await db.admins.find_one({"user_id": user_id})
             if not admin:
                 await send_or_edit("❌ Admin privilege required.")
@@ -116,20 +111,16 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await settings_callback(update, context)
         return
 
-    # ------------------------------------------------------------------
     # Admins callbacks (add admin) – owner only
-    # ------------------------------------------------------------------
     if data == "add_admin" or data == "dashboard_admins_back":
-        if user_id != OWNER_ID:
+        if user_id not in OWNER_IDS:
             await send_or_edit("❌ Only the bot owner can manage admins.")
             return
         from bot.handlers.admins import admins_callback
         await admins_callback(update, context)
         return
 
-    # ------------------------------------------------------------------
     # Create link flow – publicly accessible
-    # ------------------------------------------------------------------
     if data.startswith("creategroup_"):
         group_id = int(data.split("_")[1])
         context.user_data["create_group_id"] = group_id
@@ -198,24 +189,19 @@ async def callback_handlers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["create_link_step"] = None
         return
 
-    # ------------------------------------------------------------------
     # Revoke link from active_links panel – automatically restricted to the link's creator
-    # because revoke_link_by_id checks creator_id, but we also add a check here for safety
-    # ------------------------------------------------------------------
     if data.startswith("revoke_"):
         link_id = data.split("_")[1]
         link = await db.invite_links.find_one({"link_id": link_id})
         if not link:
             await send_or_edit("❌ Link not found.")
             return
-        if link["creator_id"] != user_id and user_id != OWNER_ID:
+        if link["creator_id"] != user_id and user_id not in OWNER_IDS:
             await send_or_edit("❌ You can only revoke your own invite links.")
             return
         await revoke_link_by_id(link_id, context.bot)
         await send_or_edit("✅ Link revoked successfully.")
         return
 
-    # ------------------------------------------------------------------
     # Fallback for unknown callback
-    # ------------------------------------------------------------------
     await send_or_edit("❓ Unknown command. Use /help for available commands.")
