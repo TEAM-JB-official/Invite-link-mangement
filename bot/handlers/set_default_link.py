@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.database.mongo import get_db, set_default_link, get_default_links, remove_default_link
+from bot.database.mongo import get_db, set_default_link as db_set_default_link, get_default_links, remove_default_link
 from bot.utils.decorators import owner_required
 
 @owner_required
@@ -51,7 +51,7 @@ async def set_default_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Default template for chat {chat_id} removed.")
         return
 
-    # Handle one or more triples
+    # Handle one or more triples (each triple: chat_id expiry max_uses)
     if len(args) % 3 != 0:
         await update.message.reply_text(
             "Usage: /setdefaultlink <chat_id1> <expiry1> <max1> <chat_id2> <expiry2> <max2> ...\n"
@@ -69,10 +69,10 @@ async def set_default_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except ValueError:
             errors.append(f"Invalid numbers at position {i+1}-{i+3}")
             continue
-        await set_default_link(chat_id, expiry, max_uses)
+        await db_set_default_link(chat_id, expiry, max_uses)
         added += 1
 
     await update.message.reply_text(
         f"✅ Added/updated {added} default templates.\n"
         f"Errors: {errors if errors else 'None'}"
-            )
+    )
