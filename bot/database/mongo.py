@@ -25,8 +25,7 @@ async def create_indexes():
     # Multi‑default‑links collection
     await db.default_links.create_index("chat_id", unique=True)
 
-    # Bot settings (mode, active links list)
-    await db.bot_settings.create_index("_id", unique=True)
+    # Do NOT try to create index on "_id" – it's automatic
 
 def get_db():
     return db
