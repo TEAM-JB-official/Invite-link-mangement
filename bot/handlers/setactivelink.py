@@ -1,55 +1,71 @@
 from datetime import datetime
-import re
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.database.mongo import get_db, set_bot_setting
+from bot.database.mongo import get_db, set_bot_setting, get_bot_setting
 from bot.utils.decorators import owner_required
+import re
+
+def extract_link_id(input_str: str) -> str:
+    """Extract link_id from URL or return the string if it's already an ID."""
+    if "t.me/+" in input_str:
+        return input_str.split("/")[-1]
+    return input_str
 
 @owner_required
 async def setactivelink(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Set multiple active links (overwrites current list).
+    Usage: /setactivelink <link_id_or_url1> <link_id_or_url2> ...
+    Example: /setactivelink https://t.me/+ABC123 +DEF456
+    """
     args = context.args
-    if len(args) != 1:
+    if len(args) == 0:
         await update.message.reply_text(
-            "Usage: /setactivelink <link_id or invite_url>\n"
-            "Examples:\n"
-            "  /setactivelink +8mnISJbFMB1mMjE9\n"
-            "  /setactivelink https://t.me/+8mnISJbFMB1mMjE9\n\n"
-            "Run /listlinks to see all available links with their IDs."
+            "Usage: /setactivelink <link_id_or_url1> <link_id_or_url2> ...\n"
+            "Example: /setactivelink https://t.me/+ABC123 +DEF456\n"
+            "To clear all active links, use: /setactivelink clear"
         )
         return
 
-    user_input = args[0].strip()
-    
-    # Extract link_id from URL or use directly
-    if "t.me/+" in user_input:
-        link_id = user_input.split("/")[-1]
-    else:
-        link_id = user_input
+    if len(args) == 1 and args[0].lower() == "clear":
+        await set_bot_setting("active_link_ids", [])
+        await update.message.reply_text("✅ All active links cleared.")
+        return
 
     db = get_db()
-    link = await db.invite_links.find_one({"link_id": link_id})
-    if not link:
-        # Show available links to help the user
-        all_links = await db.invite_links.find().to_list(None)
-        if all_links:
-            hint = "\nAvailable link IDs:\n" + "\n".join([f"  • {l['link_id']}" for l in all_links[:5]])
-        else:
-            hint = "\nNo links found. Create one with /create_link first."
+    active_ids = []
+    invalid = []
+    not_found = []
+
+    for arg in args:
+        link_id = extract_link_id(arg)
+        link = await db.invite_links.find_one({"link_id": link_id})
+        if not link:
+            not_found.append(arg)
+            continue
+        if link.get("is_revoked"):
+            invalid.append(f"{link_id} (revoked)")
+            continue
+        if link["expiry_date"] < datetime.utcnow():
+            invalid.append(f"{link_id} (expired)")
+            continue
+        active_ids.append(link_id)
+
+    if not_found:
+        await update.message.reply_text(f"❌ Links not found: {', '.join(not_found)}")
+    if invalid:
+        await update.message.reply_text(f"⚠️ Invalid (revoked/expired): {', '.join(invalid)}")
+
+    if active_ids:
+        await set_bot_setting("active_link_ids", active_ids)
+        # Also turn on Create‑Link Mode if not already on?
+        mode = await get_bot_setting("create_link_mode", False)
+        if not mode:
+            await set_bot_setting("create_link_mode", True)
+            await update.message.reply_text("✅ Create‑Link Mode automatically turned ON.")
         await update.message.reply_text(
-            f"❌ Link not found: `{link_id}`. Use `/listlinks` to see all links.{hint}",
-            parse_mode="Markdown"
+            f"✅ Active links set ({len(active_ids)}):\n" +
+            "\n".join([f"• {link_id}" for link_id in active_ids])
         )
-        return
-
-    if link.get("is_revoked"):
-        await update.message.reply_text("❌ This link is revoked and cannot be used.")
-        return
-    if link["expiry_date"] < datetime.utcnow():
-        await update.message.reply_text("❌ This link has expired. Create a new one.")
-        return
-
-    await set_bot_setting("active_link_id", link_id)
-    await update.message.reply_text(
-        f"✅ Active link set to:\n{link['invite_link']}\n\n"
-        "Now enable Create‑Link Mode with `/activelinkmode on`."
-    )
+    else:
+        await update.message.reply_text("No valid links were added. Active list unchanged.")
