@@ -1,10 +1,10 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.config import OWNER_ID
+from bot.config import OWNER_IDS   # list of owner IDs
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    is_owner = (user_id == OWNER_ID)
+    is_owner = (user_id in OWNER_IDS)   # check membership in list
 
     user_text = (
         "🤖 <b>Invite Link Management Bot</b>\n\n"
