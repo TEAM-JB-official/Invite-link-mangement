@@ -3,21 +3,30 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.database.mongo import get_db
 from bot.utils.decorators import owner_required
-from bot.config import OWNER_ID
+from bot.config import OWNER_IDS   # import the list of owner IDs
 
 @owner_required
 async def admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show admin list and management buttons."""
     db = get_db()
-    admin_list = await db.admins.find().to_list(None)
 
-    if not admin_list:
-        await db.admins.update_one(
-            {"user_id": OWNER_ID},
-            {"$set": {"role": "owner", "added_by": OWNER_ID, "added_at": datetime.utcnow()}},
-            upsert=True
-        )
-        admin_list = await db.admins.find().to_list(None)
+    # Ensure all owners from OWNER_IDS are in the admins collection with role owner
+    for owner_id in OWNER_IDS:
+        existing = await db.admins.find_one({"user_id": owner_id})
+        if not existing:
+            await db.admins.insert_one({
+                "user_id": owner_id,
+                "role": "owner",
+                "added_by": owner_id,
+                "added_at": datetime.utcnow()
+            })
+        elif existing.get("role") != "owner":
+            await db.admins.update_one(
+                {"user_id": owner_id},
+                {"$set": {"role": "owner"}}
+            )
+
+    admin_list = await db.admins.find().to_list(None)
 
     text = "👥 Admin List\n\n"
     for a in admin_list:
@@ -45,7 +54,7 @@ async def admins_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             "Send the Telegram user ID of the new admin.\n"
             "Example: 123456789\n\n"
-            "Role options: admin or super_admin"
+            "Role options: admin, super_admin, or owner"
         )
         return
 
@@ -68,8 +77,8 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         new_admin_id = int(parts[0])
         role = parts[1].lower()
-        if role not in ["admin", "super_admin"]:
-            await update.message.reply_text("❌ Role must be admin or super_admin.")
+        if role not in ["admin", "super_admin", "owner"]:
+            await update.message.reply_text("❌ Role must be admin, super_admin, or owner.")
             return
     except ValueError:
         await update.message.reply_text("❌ User ID must be a number.")
