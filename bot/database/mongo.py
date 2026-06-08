@@ -10,6 +10,7 @@ async def init_db():
     db = client[DATABASE_NAME]
     await create_indexes()
     await ensure_default_settings()
+    await ensure_settings()   # <-- NEW: initialize bot settings
     print("MongoDB connected and indexes created")
 
 async def create_indexes():
@@ -31,6 +32,30 @@ async def ensure_default_settings():
             "max_uses": 1
         })
         print("Default link template created (inactive). Use /setdefaultlink to activate.")
+
+# ----- NEW FUNCTIONS FOR BOT SETTINGS (create_link_mode, active_link_id) -----
+async def ensure_settings():
+    """Ensure bot_settings collection has default values for the two‑system mode."""
+    if await db.bot_settings.count_documents({}) == 0:
+        await db.bot_settings.insert_many([
+            {"_id": "create_link_mode", "value": False},
+            {"_id": "active_link_id", "value": None}
+        ])
+        print("Bot settings initialized: create_link_mode=False, active_link_id=None")
+
+async def get_bot_setting(key: str, default=None):
+    """Get a setting from bot_settings collection."""
+    doc = await db.bot_settings.find_one({"_id": key})
+    return doc["value"] if doc else default
+
+async def set_bot_setting(key: str, value):
+    """Set a setting in bot_settings collection."""
+    await db.bot_settings.update_one(
+        {"_id": key},
+        {"$set": {"value": value}},
+        upsert=True
+    )
+# -------------------------------------------------------------
 
 def get_db():
     return db
