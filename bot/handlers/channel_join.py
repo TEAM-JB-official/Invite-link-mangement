@@ -7,16 +7,14 @@ from bot.utils.helpers import register_user, create_invite_link, revoke_link_by_
 
 async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Called when a user joins a group (after admin approval) or channel.
-    Sends a PRIVATE message with the user's invite link(s).
+    Optional: Sends private message with links when user joins.
     """
     chat_member_update = update.chat_member
     
-    # Only act if the new status is "member" and the old status was not member (new join)
     if chat_member_update.new_chat_member.status != "member":
         return
     if chat_member_update.old_chat_member.status in ("member", "administrator", "creator"):
-        return   # Not a new join
+        return
 
     user = chat_member_update.new_chat_member.user
     chat_id = chat_member_update.chat.id
@@ -59,7 +57,6 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
             )
             return
 
-        # Build message with links
         lines = ["🔗 Here are your invite links:\n"]
         for link in valid_links:
             group = await db.groups.find_one({"group_id": link["chat_id"]})
@@ -70,9 +67,7 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
             lines.append(f"👥 Remaining uses: {link['max_uses'] - link['current_uses']}")
             lines.append("───────────────────")
         await context.bot.send_message(chat_id=user.id, text="\n".join(lines))
-        
-        # Log the join
-        await send_log(context.bot, f"✅ User {user.full_name} (@{user.username}) joined via System 2 link")
+        await send_log(context.bot, f"✅ User {user.full_name} joined via System 2")
         return
 
     else:
@@ -90,14 +85,6 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
             chat_id_tmpl = tmpl["chat_id"]
             expiry_seconds = tmpl["expiry_seconds"]
             max_uses = tmpl["max_uses"]
-
-            # Check if user already member of that chat
-            try:
-                chat_member = await context.bot.get_chat_member(chat_id_tmpl, user.id)
-                if chat_member.status in ("member", "administrator", "creator"):
-                    continue
-            except:
-                pass
 
             # Check existing link
             existing = await db.invite_links.find_one({
@@ -129,10 +116,8 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
                 print(f"Error creating link for {chat_id_tmpl}: {e}")
 
         if not valid_links:
-            # User is already a member – don't send anything
             return
 
-        # Build message with links
         lines = ["🔗 Here are your invite links:\n"]
         for link in valid_links:
             group = await db.groups.find_one({"group_id": link["chat_id"]})
@@ -143,6 +128,4 @@ async def handle_new_chat_member(update: Update, context: ContextTypes.DEFAULT_T
             lines.append(f"👥 Max uses: {link['max_uses']}")
             lines.append("───────────────────")
         await context.bot.send_message(chat_id=user.id, text="\n".join(lines))
-        
-        # Log the join
-        await send_log(context.bot, f"✅ User {user.full_name} (@{user.username}) joined via System 1 link")
+        await send_log(context.bot, f"✅ User {user.full_name} joined via System 1")
