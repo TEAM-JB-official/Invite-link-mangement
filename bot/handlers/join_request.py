@@ -7,8 +7,7 @@ from bot.utils.helpers import revoke_link_by_id, send_log
 async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Handles join requests but does NOT auto-approve.
-    Only logs the request and updates database.
-    Admin must approve manually via Telegram.
+    Only logs the request.
     """
     request = update.chat_join_request
     invite_url = request.invite_link.invite_link
@@ -45,10 +44,9 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_log(context.bot, f"❌ Join request from {user.first_name} - usage limit reached")
         return
 
-    # DO NOT auto-approve - admin must approve manually
+    # DO NOT auto-approve
     print("⏳ Join request logged - waiting for admin approval")
     
-    # Log the request for tracking
     await send_log(
         context.bot, 
         f"📋 Join request from {user.full_name} (@{user.username})\n"
