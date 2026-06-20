@@ -29,8 +29,9 @@ async def register_user(user_id, username, first_name):
 
 async def create_invite_link(bot: Bot, chat_id: int, creator_id: int, expiry_date: datetime, max_uses: int):
     """
-    Creates an invite link with creates_join_request=True for GROUPS (requires admin approval).
-    For channels, uses member_limit (direct join).
+    Creates invite link:
+    - Groups: uses creates_join_request=True (requires admin approval)
+    - Channels: uses member_limit (direct join)
     """
     db = get_db()
     chat = await bot.get_chat(chat_id)
@@ -98,5 +99,5 @@ async def send_log(bot: Bot, message: str):
             print(f"Failed to send log: {e}")
 
 async def send_welcome(bot: Bot, chat_id: int, user, creator_id: int):
-    # This function is NOT used anymore
+    # NOT USED – no welcome messages
     pass
