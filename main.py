@@ -7,9 +7,11 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram.ext import (
     Application,
     CommandHandler,
-    ChatJoinRequestHandler,
+    # ChatJoinRequestHandler,   # REMOVED – no auto‑approval
     CallbackQueryHandler,
-    MessageHandler, filters
+    MessageHandler,
+    filters,
+    ChatMemberHandler          # ADDED for detecting new members
 )
 from bot.config import BOT_TOKEN, PORT
 from bot.database.mongo import init_db
@@ -32,6 +34,8 @@ from bot.handlers.activelinkmode import activelinkmode
 from bot.handlers.setactivelink import setactivelink
 from bot.handlers.defaultlinkstatus import defaultlinkstatus
 from bot.handlers.listlinks import listlinks
+from bot.handlers.togglewelcome import togglewelcome           # NEW
+from bot.handlers.channel_join import handle_new_chat_member   # NEW
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -100,29 +104,27 @@ application.add_handler(CommandHandler("activelinkmode", activelinkmode))
 application.add_handler(CommandHandler("setactivelink", setactivelink))
 application.add_handler(CommandHandler("defaultlinkstatus", defaultlinkstatus))
 application.add_handler(CommandHandler("listlinks", listlinks))
+application.add_handler(CommandHandler("togglewelcome", togglewelcome))   # NEW
 
-# Message handlers for custom text input (create link, settings, admins)
+# Message handlers for custom text input
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_input))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_settings_text))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_text))
 
-# Join request handler
-application.add_handler(ChatJoinRequestHandler(join_request))
+# REMOVED: ChatJoinRequestHandler – no auto‑approval
+# application.add_handler(ChatJoinRequestHandler(join_request))
 
 # Callback handler for inline keyboards
 application.add_handler(CallbackQueryHandler(callback_handlers))
 
+# NEW: Detect new members (channels/groups) and send private link
+application.add_handler(ChatMemberHandler(handle_new_chat_member, ChatMemberHandler.CHAT_MEMBER))
+
 async def post_init(app: Application):
     await init_db()
-
-    # Delete webhook and wait 5 seconds for Telegram to close old connections
     await app.bot.delete_webhook(drop_pending_updates=True)
-    logging.info(
-        "Deleted webhook, waiting 5 seconds for Telegram to release old polling connections..."
-    )
-
+    logging.info("Deleted webhook, waiting 5 seconds for Telegram to release old polling connections...")
     await asyncio.sleep(5)
-
     setup_scheduler(app.bot)
     logging.info("Bot initialised")
 
@@ -132,4 +134,4 @@ if __name__ == "__main__":
     application.run_polling(
         drop_pending_updates=True,
         read_timeout=30
-    )
+)
