@@ -7,11 +7,11 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram.ext import (
     Application,
     CommandHandler,
-    # ChatJoinRequestHandler,   # REMOVED – no auto‑approval
+    ChatJoinRequestHandler,      # KEPT for logging, but NO auto-approval
     CallbackQueryHandler,
     MessageHandler,
     filters,
-    ChatMemberHandler          # ADDED for detecting new members
+    ChatMemberHandler
 )
 from bot.config import BOT_TOKEN, PORT
 from bot.database.mongo import init_db
@@ -34,8 +34,8 @@ from bot.handlers.activelinkmode import activelinkmode
 from bot.handlers.setactivelink import setactivelink
 from bot.handlers.defaultlinkstatus import defaultlinkstatus
 from bot.handlers.listlinks import listlinks
-from bot.handlers.togglewelcome import togglewelcome           # NEW
-from bot.handlers.channel_join import handle_new_chat_member   # NEW
+from bot.handlers.togglewelcome import togglewelcome
+from bot.handlers.channel_join import handle_new_chat_member
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -104,20 +104,20 @@ application.add_handler(CommandHandler("activelinkmode", activelinkmode))
 application.add_handler(CommandHandler("setactivelink", setactivelink))
 application.add_handler(CommandHandler("defaultlinkstatus", defaultlinkstatus))
 application.add_handler(CommandHandler("listlinks", listlinks))
-application.add_handler(CommandHandler("togglewelcome", togglewelcome))   # NEW
+application.add_handler(CommandHandler("togglewelcome", togglewelcome))
 
 # Message handlers for custom text input
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_input))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_settings_text))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_text))
 
-# REMOVED: ChatJoinRequestHandler – no auto‑approval
-# application.add_handler(ChatJoinRequestHandler(join_request))
+# Join request handler - LOGS but does NOT auto-approve
+application.add_handler(ChatJoinRequestHandler(join_request))
 
 # Callback handler for inline keyboards
 application.add_handler(CallbackQueryHandler(callback_handlers))
 
-# NEW: Detect new members (channels/groups) and send private link
+# Detect new members and send private links
 application.add_handler(ChatMemberHandler(handle_new_chat_member, ChatMemberHandler.CHAT_MEMBER))
 
 async def post_init(app: Application):
