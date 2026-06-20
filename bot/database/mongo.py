@@ -78,3 +78,18 @@ async def remove_default_link(chat_id: int):
 async def clear_all_default_links():
     """Remove all default templates."""
     await db.default_links.delete_many({})
+
+# ==================== NEW FUNCTIONS ====================
+
+async def get_send_welcome_setting():
+    """Return True if welcome messages should be sent, False otherwise."""
+    doc = await db.bot_settings.find_one({"_id": "send_welcome"})
+    return doc["value"] if doc else True   # default = True (enabled)
+
+async def set_send_welcome_setting(value: bool):
+    """Enable or disable welcome messages globally."""
+    await db.bot_settings.update_one(
+        {"_id": "send_welcome"},
+        {"$set": {"value": value}},
+        upsert=True
+    )
