@@ -29,27 +29,17 @@ async def register_user(user_id, username, first_name):
 
 async def create_invite_link(bot: Bot, chat_id: int, creator_id: int, expiry_date: datetime, max_uses: int):
     """
-    Creates an invite link that works for both groups and channels.
-    - Groups: uses creates_join_request=True (auto‑approval)
-    - Channels: uses member_limit (direct join, no approval)
+    Creates an invite link with member_limit (direct join) for BOTH groups and channels.
+    This removes the need for join request approval.
     """
     db = get_db()
-    chat = await bot.get_chat(chat_id)
-    is_group = chat.type in ["group", "supergroup"]
-    
-    if is_group:
-        link = await bot.create_chat_invite_link(
-            chat_id=chat_id,
-            expire_date=expiry_date,
-            creates_join_request=True
-        )
-    else:
-        link = await bot.create_chat_invite_link(
-            chat_id=chat_id,
-            expire_date=expiry_date,
-            member_limit=max_uses
-        )
-    
+    # No need to distinguish type – always use member_limit
+    link = await bot.create_chat_invite_link(
+        chat_id=chat_id,
+        expire_date=expiry_date,
+        member_limit=max_uses
+    )
+
     link_doc = {
         "link_id": link.invite_link.split("/")[-1],
         "invite_link": link.invite_link,
@@ -60,7 +50,7 @@ async def create_invite_link(bot: Bot, chat_id: int, creator_id: int, expiry_dat
         "expiry_date": expiry_date,
         "created_at": datetime.utcnow(),
         "is_revoked": False,
-        "is_group": is_group
+        "is_group": True   # kept for compatibility
     }
     await db.invite_links.insert_one(link_doc)
     return link_doc
@@ -110,7 +100,6 @@ async def send_welcome(bot: Bot, chat_id: int, user, creator_id: int):
         f"Enjoy your stay! 🚀\n\n"
         f"Created By @TeamJB_bot"
     )
-    # Optional: retrieve custom welcome from DB if exists
     group = await db.groups.find_one({"group_id": chat_id})
     if group and group.get("welcome_message"):
         welcome_text = group["welcome_message"].format(user=user.first_name, link_creator=str(creator_id))
