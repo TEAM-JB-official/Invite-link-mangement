@@ -7,7 +7,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram.ext import (
     Application,
     CommandHandler,
-    ChatJoinRequestHandler,      # KEPT for logging, but NO auto-approval
+    ChatJoinRequestHandler,
     CallbackQueryHandler,
     MessageHandler,
     filters,
@@ -19,7 +19,7 @@ from bot.handlers import (
     start, create_link, active_links, revoke_link, revoke_all,
     stats, backup, restore, dashboard, join_request, callback_handlers
 )
-from bot.handlers.help import help_command
+from bot.handlers.help import help_command, help_callback          # <--- added help_callback
 from bot.handlers.set_default_link import set_default_link
 from bot.handlers.message_handlers import handle_custom_input
 from bot.handlers.addgroup import addgroup
@@ -114,8 +114,13 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_a
 # Join request handler - LOGS but does NOT auto-approve
 application.add_handler(ChatJoinRequestHandler(join_request))
 
-# Callback handler for inline keyboards
+# ========== FIX: Help pagination callbacks must come BEFORE the generic callback ==========
+application.add_handler(CallbackQueryHandler(help_callback, pattern="^help_page_"))
+application.add_handler(CallbackQueryHandler(help_callback, pattern="^help_close$"))
+
+# Callback handler for inline keyboards (generic - catches everything else)
 application.add_handler(CallbackQueryHandler(callback_handlers))
+# ========================================================================================
 
 # Detect new members and send private links
 application.add_handler(ChatMemberHandler(handle_new_chat_member, ChatMemberHandler.CHAT_MEMBER))
@@ -134,4 +139,4 @@ if __name__ == "__main__":
     application.run_polling(
         drop_pending_updates=True,
         read_timeout=30
-)
+            )
