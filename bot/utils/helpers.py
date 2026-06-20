@@ -29,17 +29,28 @@ async def register_user(user_id, username, first_name):
 
 async def create_invite_link(bot: Bot, chat_id: int, creator_id: int, expiry_date: datetime, max_uses: int):
     """
-    Creates an invite link with member_limit (direct join) for BOTH groups and channels.
-    This removes the need for join request approval.
+    Creates an invite link with creates_join_request=True for GROUPS (requires admin approval).
+    For channels, uses member_limit (direct join).
     """
     db = get_db()
-    # No need to distinguish type – always use member_limit
-    link = await bot.create_chat_invite_link(
-        chat_id=chat_id,
-        expire_date=expiry_date,
-        member_limit=max_uses
-    )
-
+    chat = await bot.get_chat(chat_id)
+    is_group = chat.type in ["group", "supergroup"]
+    
+    if is_group:
+        # Groups: requires admin approval
+        link = await bot.create_chat_invite_link(
+            chat_id=chat_id,
+            expire_date=expiry_date,
+            creates_join_request=True
+        )
+    else:
+        # Channels: direct join
+        link = await bot.create_chat_invite_link(
+            chat_id=chat_id,
+            expire_date=expiry_date,
+            member_limit=max_uses
+        )
+    
     link_doc = {
         "link_id": link.invite_link.split("/")[-1],
         "invite_link": link.invite_link,
@@ -50,7 +61,7 @@ async def create_invite_link(bot: Bot, chat_id: int, creator_id: int, expiry_dat
         "expiry_date": expiry_date,
         "created_at": datetime.utcnow(),
         "is_revoked": False,
-        "is_group": True   # kept for compatibility
+        "is_group": is_group
     }
     await db.invite_links.insert_one(link_doc)
     return link_doc
@@ -87,20 +98,5 @@ async def send_log(bot: Bot, message: str):
             print(f"Failed to send log: {e}")
 
 async def send_welcome(bot: Bot, chat_id: int, user, creator_id: int):
-    db = get_db()
-    welcome_text = (
-        f"Hi {user.mention_html()},\n\n"
-        f"🔹 This bot provides secure invite links for our group/channel.\n"
-        f"🔹 Each invite link may have a usage limit or expiry time.\n"
-        f"🔹 To receive your invite link, press the button below or use /start.\n\n"
-        f"📌 **Rules:**\n"
-        f"• Do not share invite links with others.\n"
-        f"• Expired links cannot be reused.\n"
-        f"• Contact an admin if you have any issues.\n\n"
-        f"Enjoy your stay! 🚀\n\n"
-        f"Created By @TeamJB_bot"
-    )
-    group = await db.groups.find_one({"group_id": chat_id})
-    if group and group.get("welcome_message"):
-        welcome_text = group["welcome_message"].format(user=user.first_name, link_creator=str(creator_id))
-    await bot.send_message(chat_id, welcome_text, parse_mode="HTML")
+    # This function is NOT used anymore
+    pass
