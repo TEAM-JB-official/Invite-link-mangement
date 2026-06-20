@@ -36,6 +36,7 @@ from bot.handlers.defaultlinkstatus import defaultlinkstatus
 from bot.handlers.listlinks import listlinks
 from bot.handlers.togglewelcome import togglewelcome
 from bot.handlers.channel_join import handle_new_chat_member
+from bot.handlers.removegroup import removegroup
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -105,6 +106,7 @@ application.add_handler(CommandHandler("setactivelink", setactivelink))
 application.add_handler(CommandHandler("defaultlinkstatus", defaultlinkstatus))
 application.add_handler(CommandHandler("listlinks", listlinks))
 application.add_handler(CommandHandler("togglewelcome", togglewelcome))
+application.add_handler(CommandHandler("removegroup", removegroup))
 
 # Message handlers for custom text input
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_input))
